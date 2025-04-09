@@ -19,7 +19,7 @@ if uploaded_file is not None:
     #st.dataframe(df) #displays df
     #fetch users
     user_list=df['Sender'].unique().tolist()
-    user_list.remove('Meta AI')
+    #user_list.remove('Meta AI')
     user_list.sort()
     user_list.insert(0,"Overall")
     selected_user = st.sidebar.selectbox("Show analysis wrt", user_list)
