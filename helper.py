@@ -124,11 +124,19 @@ def activity_heatmap(selected_user,df):
         "20-21", "21-22", "22-23", "23-00"
     ]
     pivot_table = df.pivot_table(index='DayName', columns='Period', values='Message', aggfunc='count').fillna(0)
-    # Add missing columns with 0s
-    for period in period_order:
-        if period not in pivot_table.columns:
-            pivot_table[period] = 0
-    pivot_table = pivot_table[period_order]
+    try:
+        # Add missing columns with 0s
+        for period in period_order:
+            if period not in pivot_table.columns:
+                pivot_table[period] = 0
+
+        # Reorder columns safely
+        existing_periods = [period for period in period_order if period in pivot_table.columns]
+        pivot_table = pivot_table[existing_periods]
+
+    except KeyError as e:
+        print(f"KeyError occurred while reindexing pivot_table: {e}")
+
     return pivot_table
 
 
