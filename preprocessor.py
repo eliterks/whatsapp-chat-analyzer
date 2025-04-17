@@ -5,8 +5,10 @@ from datetime import datetime
 # @st.cache_data
 # @st.cache_resource
 def preprocess(data):
-    pattern = r'(\d{2}/\d{2}/\d{2}),\s(\d{1,2}:\d{2})\s*[^\x00-\x7F]*([AaPp][Mm])\s-\s([^:]+):\s(.*)'
-    matches = re.findall(pattern,data)
+    pattern_msg = r'(\d{2}/\d{2}/\d{2}),\s(\d{1,2}:\d{2})\s*[^\x00-\x7F]*([AaPp][Mm])\s-\s([^:]+):\s(.*)'
+    pattern_sys = r'(\d{2}/\d{2}/\d{2}),\s(\d{1,2}:\d{2})\s*[^\x00-\x7F]*([AaPp][Mm])\s-\s(.*)'
+    matches = re.findall(pattern_msg,data)
+    sys_matches = re.findall(pattern_sys, data)
     # Lists to store structured data
     dates, times_12hr, senders, messages, times_24hr = [], [], [], [], []
 
@@ -26,6 +28,18 @@ def preprocess(data):
         senders.append(sender.strip())
         messages.append(message.strip())
 
+        for match in sys_matches:
+            if len(match) == 4:
+                date, time_12hr, meridian, message = match
+                full_12hr_time = f"{time_12hr} {meridian.upper()}"
+                time_24hr = datetime.strptime(full_12hr_time, "%I:%M %p").strftime("%H:%M")
+
+                dates.append(datetime.strptime(date, "%d/%m/%y").strftime("%Y-%m-%d"))
+                times_12hr.append(full_12hr_time)
+                times_24hr.append(time_24hr)
+                senders.append("System")
+                messages.append(message.strip())
+
     # Step 3: Create DataFrame
     df = pd.DataFrame({
         "Date": dates,
@@ -40,6 +54,7 @@ def preprocess(data):
     df['Date'] = pd.to_datetime(df['Date'])
     df['Day'] = df['Date'].dt.day
     df['Time (24hr)'] = pd.to_datetime(df['Time (24hr)'], format='%H:%M')
+    df = df[df['Message'].notnull() & df['Message'].str.strip().ne("")]
     df['Hour'] = df['Time (24hr)'].dt.hour
     df['Minute'] = df['Time (24hr)'].dt.minute
     df.loc[:, 'DayName'] = df['Date'].dt.day_name()

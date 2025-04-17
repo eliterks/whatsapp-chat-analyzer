@@ -17,6 +17,12 @@ if uploaded_file is not None:
     df=preprocessor.preprocess(data)
     #st.title("DataFrame Of All Chats")
     #st.dataframe(df) #displays df
+
+    st.subheader("Parsed Chat Summary")
+    st.write(f"📊 Total messages parsed: {len(df)}")
+    st.write(f"📅 Date range: {df['Date'].min().date()} to {df['Date'].max().date()}")
+    st.write("Sample data:", df.head())
+
     #fetch users
     user_list=df['Sender'].unique().tolist()
     #user_list.remove('Meta AI')
@@ -81,9 +87,12 @@ if uploaded_file is not None:
         #Weekly Activity HeatMap
         st.title("Activity Heatmap")
         user_heatmap= helper.activity_heatmap(selected_user,df)
-        fig, ax = plt.subplots()
-        ax=sns.heatmap(user_heatmap)
-        st.pyplot(fig)
+        if user_heatmap.empty or user_heatmap.isnull().all().all():
+            st.warning("No activity data available to generate heatmap for this chat.")
+        else:
+            fig, ax = plt.subplots()
+            sns.heatmap(user_heatmap, ax=ax)
+            st.pyplot(fig)
 
         if selected_user=='Overall':
             x,new_df= helper.most_busy_users(df)
