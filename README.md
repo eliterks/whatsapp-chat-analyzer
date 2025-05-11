@@ -86,11 +86,13 @@ Models were tested using:
 - Comparative Chart (Tuned vs Non-Tuned)
 
 ---
-## 📁 Folder Structure
+## 📁 Project Structure
+whatsapp-chat-analyzer/
 │
-├── app.py # Main Streamlit app
-├── helper.py # Functions for visualization & stats
-├── preprocessor.py # WhatsApp text parsing logic
-├── ml_models.py # ML model training, tuning, evaluation
-├── requirements.txt # Python dependencies
-└── README.md # Project documentation
+├── app.py             # Main Streamlit app
+├── helper.py          # Functions for visualization & stats
+├── preprocessor.py    # WhatsApp text parsing logic
+├── ml_models.py       # ML model training, tuning, evaluation
+├── requirements.txt   # Python dependencies
+└── README.md          # Project documentation
+
