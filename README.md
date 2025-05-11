@@ -87,4 +87,10 @@ Models were tested using:
 
 ---
 ## 📁 Folder Structure
-<pre> whatsapp-chat-analyzer/ │ ├── app.py # Main Streamlit application file ├── helper.py # Functions for visualizations, heatmaps, analytics ├── preprocessor.py # WhatsApp text preprocessing and feature extraction ├── ml_models.py # All ML models: Logistic Regression, KNN, Decision Tree (tuned & untuned) ├── requirements.txt # Required dependencies for the project └── README.md # Documentation for understanding and running the project </pre>
+│
+├── app.py # Main Streamlit app
+├── helper.py # Functions for visualization & stats
+├── preprocessor.py # WhatsApp text parsing logic
+├── ml_models.py # ML model training, tuning, evaluation
+├── requirements.txt # Python dependencies
+└── README.md # Project documentation
