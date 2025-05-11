@@ -1,13 +1,11 @@
-# whatsapp-chat-analyzer
-[ Please copy this url and paste it into a new tab ]
-You can visit the site at :
-https://chat-analyze.streamlit.app/
-
 # 📊 WhatsApp Chat Analyzer & User Activity Classifier
 
 A powerful Streamlit web application that analyzes WhatsApp group chat data to generate insightful visualizations, statistics, and **predicts whether a user is highly active (1) or not (0)** using machine learning models.
 
 ---
+[ Please copy this url and paste it into a new tab ]
+You can visit the site at :
+https://chat-analyze.streamlit.app/
 
 ## 🚀 Features
 
