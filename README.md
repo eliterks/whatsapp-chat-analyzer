@@ -94,7 +94,7 @@ whatsapp-chat-analyzer/
 ├── app.py             # Main Streamlit app  
 ├── helper.py          # Functions for visualization & stats  
 ├── preprocessor.py    # WhatsApp text parsing logic  
-├── ml_models.py       # ML model training, tuning, evaluation  
+├── wca_ongoing.ipynb       # ML model training, tuning, evaluation  
 ├── requirements.txt   # Python dependencies  
 └── README.md          # Project documentation  
 
