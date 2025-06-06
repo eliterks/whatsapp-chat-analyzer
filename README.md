@@ -91,7 +91,7 @@ Models were tested using:
 ```bash
 whatsapp-chat-analyzer/
 │
-├──sample analysis of real whatsapp group chat
+├── sample analysis of real whatsapp group chat
 ├── app.py             # Main Streamlit app  
 ├── helper.py          # Functions for visualization & stats  
 ├── preprocessor.py    # WhatsApp text parsing logic  
