@@ -13,8 +13,25 @@ uploaded_file = st.sidebar.file_uploader("Choose a file")
 if uploaded_file is not None:
     bytes_data = uploaded_file.getvalue()
     st.sidebar.success("File uploaded successfully")
-    data=bytes_data.decode("utf-8")
-    df=preprocessor.preprocess(data)
+
+    # Robust decoding with fallbacks for common WhatsApp export encodings
+    try:
+        data = bytes_data.decode("utf-8")
+    except UnicodeDecodeError:
+        decoded = None
+        for enc in ("utf-8-sig", "cp1252", "latin-1"):
+            try:
+                decoded = bytes_data.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        if decoded is None:
+            # Last resort: replace undecodable bytes so the app keeps running
+            decoded = bytes_data.decode("utf-8", errors="replace")
+        data = decoded
+
+    df = preprocessor.preprocess(data)
+
     #st.title("DataFrame Of All Chats")
     #st.dataframe(df) #displays df
 
