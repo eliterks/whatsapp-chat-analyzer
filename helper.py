@@ -5,6 +5,45 @@ from wordcloud import WordCloud
 import pandas as pd
 from collections import Counter
 import emoji
+# --- ML PREDICTION HELPER ---
+
+import re
+
+def engineer_features_for_prediction(df):
+    """
+    Creates the user-level feature table for the ML model.
+    This logic MUST match the `wca_ongoing.ipynb` notebook.
+    """
+    try:
+        # 1. Create base features from the notebook
+        df_ml = df.copy()
+        df_ml['Message_Length'] = df_ml['Message'].apply(lambda x: len(str(x)))
+        df_ml['Emoji_Count'] = df_ml['Message'].apply(lambda x: len([c for c in str(x) if emoji.is_emoji(c)]))
+        df_ml['Link_Count'] = df_ml['Message'].apply(lambda x: len(re.findall(r"http[s]?://\S+", str(x))))
+        df_ml['Media_Count'] = df_ml['Message'].apply(lambda x: 1 if '<Media omitted>' in str(x) else 0)
+
+        # 2. Group by sender to create the final feature table
+        # These are the columns your model expects
+        numerical_features = ['Message_Length', 'Emoji_Count', 'Hour', 'Link_Count', 'Media_Count']
+        categorical_features = ['DayName']
+
+        # Aggregate numerical features
+        user_features_num = df_ml.groupby('Sender')[numerical_features].mean()
+
+        # Aggregate categorical features (get the most common day)
+        user_features_cat = df_ml.groupby('Sender')[categorical_features].agg(lambda x: x.mode().iloc[0])
+
+        # Join them all together
+        final_feature_table = pd.merge(user_features_num, user_features_cat, on='Sender', how='left')
+
+        # Ensure column order matches training
+        final_feature_table = final_feature_table[numerical_features + categorical_features]
+
+        return final_feature_table
+
+    except Exception as e:
+        print(f"Error in feature engineering: {e}")
+        return pd.DataFrame() # Return empty if it fails
 extractor = URLExtract() #creating object of URLExtract
 def fetch_stats(selected_user,df):
     df.columns = df.columns.str.strip()

@@ -2,7 +2,7 @@ import re
 import pandas as pd
 from datetime import datetime
 # @st.cache
-# @st.cache_data
+@st.cache_data
 # @st.cache_resource
 def preprocess(data):
     pattern_msg = r'(\d{2}/\d{2}/\d{2}),\s(\d{1,2}:\d{2})\s*[^\x00-\x7F]*([AaPp][Mm])\s-\s([^:]+):\s(.*)'
