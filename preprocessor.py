@@ -1,5 +1,5 @@
+import streamlit as st  # <-- Includes import
 # Python
-import streamlit as st
 import re
 from datetime import datetime
 import pandas as pd
@@ -19,8 +19,11 @@ USER_LINE_RE = re.compile(r"^(?P<user>[^:]+):\s(?P<message>.*)", re.DOTALL)
 
 
 def _parse_date_iso(date_str: str) -> str | None:
-    """Parse date in dd/mm/yy or dd/mm/yyyy to ISO string; return None on failure."""
-    for fmt in ("%d/%m/%y", "%d/%m/%Y"):
+    """Parse date in dd/mm/yy or mm/dd/yy to ISO string; return None on failure."""
+
+    # --- BUG FIX IS HERE: Checks for both date formats ---
+    for fmt in ("%d/%m/%y", "%d/%m/%Y", "%m/%d/%y", "%m/%d/%Y"):
+    # --- END OF BUG FIX ---
         try:
             return datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
         except ValueError:
@@ -30,106 +33,116 @@ def _parse_date_iso(date_str: str) -> str | None:
 
 def _parse_times(time_part: str, ampm: str | None) -> tuple[str | None, str | None]:
     """
-    Return (time_12hr_str, time_24hr_str) or (None, None) if parsing fails.
-    - If AM/PM present, parse as 12h, also derive 24h.
-    - If AM/PM absent, assume 24h, also derive 12h.
+    Return (time_12hr_str, time_24hr_dt)
     """
-    try:
-        if ampm:
-            full_12 = f"{time_part} {ampm.upper()}"
-            dt = datetime.strptime(full_12, "%I:%M %p")
-            return dt.strftime("%I:%M %p"), dt.strftime("%H:%M")
-        else:
-            dt = datetime.strptime(time_part, "%H:%M")
-            return dt.strftime("%I:%M %p"), dt.strftime("%H:%M")
-    except ValueError:
-        return None, None
+    if ampm:  # 12-hour format
+        try:
+            time_12hr = f"{time_part} {ampm.upper()}"
+            # Use datetime.strptime to parse time, then get the time part
+            time_24hr_dt = datetime.strptime(time_12hr, "%I:%M %p")
+            time_24hr_str = time_24hr_dt.strftime("%H:%M") # Store as string H:M
+            return time_12hr, time_24hr_str # Return string H:M
+        except ValueError:
+            return None, None  # Invalid 12-hr time
+    else:  # 24-hour format
+        try:
+            # Use datetime.strptime to parse time, then get the time part
+            time_24hr_dt = datetime.strptime(time_part, "%H:%M")
+            # Generate 12hr format string if needed, or return None
+            time_12hr_str = time_24hr_dt.strftime("%I:%M %p")
+            time_24hr_str = time_24hr_dt.strftime("%H:%M") # Store as string H:M
+            return time_12hr_str, time_24hr_str # Return string H:M
+        except ValueError:
+            return None, None  # Invalid 24-hr time
 
-@st.cache_data
+
+@st.cache_data  # <-- Includes cache fix
 def preprocess(data: str) -> pd.DataFrame:
-    # Find the start of each message/system entry by locating header occurrences
-    starts = [m.start() for m in HEADER_RE.finditer(data)]
-    if not starts:
-        # Return an empty DataFrame with expected columns if nothing matches
-        return pd.DataFrame(
-            columns=[
-                "Date", "Time (AM/PM)", "Time (24hr)", "Sender", "Message",
-                "Year", "Month", "Day", "Hour", "Minute", "DayName",
-                "Month_num", "only_date", "Period"
-            ]
-        )
+    """
+    Parse a WhatsApp chat export file into a Pandas DataFrame.
+    """
+    parsed_lines = []
 
-    starts.append(len(data))  # sentinel for slicing the last chunk
+    # Split the file into messages
+    messages = HEADER_RE.split(data)
 
-    rows = []
-    for s, e in zip(starts[:-1], starts[1:]):
-        chunk = data[s:e].rstrip("\n")
+    if not messages or len(messages) < 2:
+        # If no messages, return an empty DataFrame
+        return pd.DataFrame()
 
-        # Extract header fields from the chunk start
-        m = HEADER_RE.match(chunk)
-        if not m:
-            continue  # safety
+    # The first split part is just header, ignore it
+    for i in range(1, len(messages), 5):
+        try:
+            # We get 5 groups: date, time, ampm, (header), message_block
+            date_str = messages[i]
+            time_str = messages[i+1]
+            ampm_str = messages[i+2]
+            message_block = messages[i+4]
 
-        date_str = m.group("date")
-        time_str = m.group("time")
-        ampm = m.group("ampm")
+            # Parse date and time
+            iso_date = _parse_date_iso(date_str)
+            time_12hr, time_24hr = _parse_times(time_str, ampm_str)
 
-        # Remaining content (may be multiline)
-        content = chunk[m.end():].strip()
+            if iso_date is None or time_24hr is None:
+                continue # Skip bad date/time
 
-        # Classify as user or system
-        user_m = USER_LINE_RE.match(content)
-        if user_m:
-            sender = user_m.group("user").strip()
-            message = user_m.group("message").strip()
-        else:
-            sender = "System"
-            message = content
+            # Split message block into user and message
+            user_line_match = USER_LINE_RE.match(message_block)
 
-        # Parse date/time
-        iso_date = _parse_date_iso(date_str)
-        time_12, time_24 = _parse_times(time_str, ampm)
+            if user_line_match:
+                # It's a user message
+                user = user_line_match.group("user").strip()
+                message = user_line_match.group("message").strip()
+            else:
+                # It's a system message
+                user = "System"
+                message = message_block.strip()
 
-        if not iso_date or not time_24:
-            # Skip rows with unparseable date/time
+            parsed_lines.append(
+                {
+                    "Date": iso_date,
+                    "Time (AM/PM)": time_12hr,
+                    "Time (24hr)": time_24hr, # Keep as string H:M
+                    "Sender": user,
+                    "Message": message,
+                }
+            )
+        except IndexError:
+            # Reached end of messages list
+            continue
+        except Exception as e:
+            # Other parsing error
+            print(f"Error parsing block: {e}")
             continue
 
-        rows.append(
-            {
-                "Date": iso_date,
-                "Time (AM/PM)": time_12,
-                "Time (24hr)": time_24,
-                "Sender": sender,
-                "Message": message,
-            }
-        )
+    # Create DataFrame
+    df = pd.DataFrame(parsed_lines)
 
-    df = pd.DataFrame(rows)
+    if df.empty:
+        # If no lines were parsed, return empty
+        return pd.DataFrame()
 
-    # Ensure consistent dtypes before string ops
-    if "Message" in df.columns:
-        df["Message"] = df["Message"].astype("string")
-    if "Sender" in df.columns:
-        df["Sender"] = df["Sender"].astype("string")
-
-    # Parse dates/times safely
-    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-    df["Time (24hr)"] = pd.to_datetime(df["Time (24hr)"], format="%H:%M", errors="coerce")
-
-    # Drop rows with invalid date/time
-    df = df[df["Date"].notna() & df["Time (24hr)"].notna()]
-
-    # Remove null/blank messages safely
-    if not df.empty:
-        df = df[df["Message"].str.strip().fillna("").ne("")]
+    # Clean up empty messages
+    df = df[df["Message"].str.strip().fillna("").ne("")]
 
     # Enrich fields
     if not df.empty:
+        df["Date"] = pd.to_datetime(df["Date"])
         df["Year"] = df["Date"].dt.year
         df["Month"] = df["Date"].dt.month_name()
         df["Day"] = df["Date"].dt.day
-        df["Hour"] = df["Time (24hr)"].dt.hour
-        df["Minute"] = df["Time (24hr)"].dt.minute
+        # Convert time string to datetime.time before accessing dt properties
+        # Handle potential errors during conversion
+        time_as_datetime = pd.to_datetime(df['Time (24hr)'], format='%H:%M', errors='coerce')
+
+        # Drop rows where time conversion failed (NaN in time_as_datetime)
+        df = df[time_as_datetime.notna()]
+        time_as_datetime = time_as_datetime.dropna() # Remove NaT for safe dt access
+
+        # Safely access dt properties now using the valid datetime objects
+        df['Hour'] = time_as_datetime.dt.hour
+        df['Minute'] = time_as_datetime.dt.minute
+
         df.loc[:, "DayName"] = df["Date"].dt.day_name()
         df.loc[:, "Month_num"] = df["Date"].dt.month
         df.loc[:, "only_date"] = df["Date"].dt.date
@@ -140,7 +153,8 @@ def preprocess(data: str) -> pd.DataFrame:
 
         # Period label
         period = []
-        for hour in df["Hour"]:
+        # Use .loc to iterate safely after potential row drops
+        for hour in df.loc[time_as_datetime.index, "Hour"]:
             if hour == 23:
                 period.append(f"{hour}-00")
             elif hour == 0:
@@ -148,7 +162,8 @@ def preprocess(data: str) -> pd.DataFrame:
             else:
                 period.append(f"{hour}-{hour+1}")
         df = df.copy()
-        df.loc[:, "Period"] = period
+        # Use .loc to assign safely after potential row drops
+        df.loc[time_as_datetime.index, "Period"] = period
     else:
         # If empty, make sure all expected columns exist
         df = pd.DataFrame(
@@ -157,12 +172,5 @@ def preprocess(data: str) -> pd.DataFrame:
                 "Year", "Month", "Day", "Hour", "Minute", "DayName",
                 "Month_num", "only_date", "Period"
             ]
-        ).astype(
-            {
-                "Message": "string",
-                "Sender": "string",
-                "Period": "string",
-            }
         )
-
     return df
