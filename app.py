@@ -2,9 +2,7 @@ import streamlit as st
 import preprocessor,helper
 import matplotlib.pyplot as plt
 import seaborn as sns
-# @st.cache
-# @st.cache_data
-# @st.cache_resource
+
 st.sidebar.title("Whatsapp Chat Analyser")
 if st.sidebar.button("Clear Cache"):
     st.cache_data.clear()
@@ -14,7 +12,7 @@ if uploaded_file is not None:
     bytes_data = uploaded_file.getvalue()
     st.sidebar.success("File uploaded successfully")
 
-    # Robust decoding with fallbacks for common WhatsApp export encodings
+    # Robust decoding from mentor's new file
     try:
         data = bytes_data.decode("utf-8")
     except UnicodeDecodeError:
@@ -26,14 +24,10 @@ if uploaded_file is not None:
             except UnicodeDecodeError:
                 continue
         if decoded is None:
-            # Last resort: replace undecodable bytes so the app keeps running
             decoded = bytes_data.decode("utf-8", errors="replace")
         data = decoded
 
     df = preprocessor.preprocess(data)
-
-    #st.title("DataFrame Of All Chats")
-    #st.dataframe(df) #displays df
 
     st.subheader("Parsed Chat Summary")
     st.write(f"📊 Total messages parsed: {len(df)}")
@@ -48,9 +42,6 @@ if uploaded_file is not None:
     selected_user = st.sidebar.selectbox("Show analysis wrt", user_list)
 
     if st.sidebar.button("Generate Analysis"):
-#these num_messages are just variables to carry the value fteched from fetch_stats func
-# and jo upr variables ke naam ha wahi niche st.title mein ha
-# and ye zaruri nhi ki jo variables ke naam idhar ha wahi same helper.py file mein bhi ho
         num_messages,words,num_media_messages,num_links= helper.fetch_stats(selected_user,df)
         st.title("Top Statistics")
         col1,col2,col3,col4=st.columns(4)
@@ -148,7 +139,3 @@ if uploaded_file is not None:
         st.title("Most Common Emojis")
         emoji_df= helper.emoji_helper(selected_user,df)
         st.dataframe(emoji_df)
-
-
-
-
