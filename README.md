@@ -3,6 +3,8 @@
 A powerful Streamlit web application that analyzes WhatsApp group chat data to generate insightful visualizations, statistics, and **predicts whether a user is highly active (1) or not (0)** using machine learning models.
 
 ---
+[Video Demonstration](https://youtu.be/jzRf_38gA1o)
+
 [ Please copy this url and paste it into a new tab ]
 You can visit the site at :
 https://chat-analyze.streamlit.app/
