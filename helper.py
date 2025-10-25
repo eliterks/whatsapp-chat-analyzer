@@ -30,7 +30,10 @@ def most_busy_users(df):
     return x,df
 #WordCloud
 def create_wordcloud(selected_user,df):
-    f = open('stop_hinglish.txt', 'r')
+    
+    # --- BUG FIX: Added encoding='utf-8' ---
+    f = open('stop_hinglish.txt', 'r', encoding='utf-8')
+    
     stop_words = f.read()
     if selected_user!='Overall':
         df= df[df['Sender']== selected_user]
@@ -51,7 +54,9 @@ def create_wordcloud(selected_user,df):
 
 def most_common_words(selected_user,df):
 
-    f=open('stop_hinglish.txt','r')
+    # --- BUG FIX: Added encoding='utf-8' ---
+    f=open('stop_hinglish.txt','r', encoding='utf-8')
+    
     stop_words=f.read()
     if selected_user!='Overall':
         df= df[df['Sender']== selected_user]
@@ -120,7 +125,7 @@ def activity_heatmap(selected_user,df):
         df = df[df['Sender'] == selected_user]
     period_order = [
         "00-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10",
-        "10-11", "11-12", "12-13", "13-14", "14-15", "15-16", "16-17", "17-18", "18-19", "19-20",
+        "10-11", "11-12", "12-13", "13-14", "14-15", "15-16", "16-17", "17-18", "19-20",
         "20-21", "21-22", "22-23", "23-00"
     ]
     pivot_table = df.pivot_table(index='DayName', columns='Period', values='Message', aggfunc='count').fillna(0)
@@ -138,6 +143,3 @@ def activity_heatmap(selected_user,df):
         print(f"KeyError occurred while reindexing pivot_table: {e}")
 
     return pivot_table
-
-
-
