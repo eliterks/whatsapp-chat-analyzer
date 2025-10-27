@@ -1,4 +1,5 @@
 # Python
+import streamlit as st
 import re
 from datetime import datetime
 import pandas as pd
@@ -44,7 +45,7 @@ def _parse_times(time_part: str, ampm: str | None) -> tuple[str | None, str | No
     except ValueError:
         return None, None
 
-
+@st.cache_data
 def preprocess(data: str) -> pd.DataFrame:
     # Find the start of each message/system entry by locating header occurrences
     starts = [m.start() for m in HEADER_RE.finditer(data)]
