@@ -2,35 +2,48 @@ import streamlit as st
 import preprocessor,helper
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pandas as pd
+
+if "analysis_generated" not in st.session_state:
+    st.session_state.analysis_generated = False
 
 st.sidebar.title("Whatsapp Chat Analyser")
 if st.sidebar.button("Clear Cache"):
     st.cache_data.clear()
     st.cache_resource.clear()
-uploaded_file = st.sidebar.file_uploader("Choose a file")
+uploaded_file = st.file_uploader("Choose a WhatsApp chat file")
+
 if uploaded_file is not None:
+    # =========================
+    # 📂 File Upload & Decoding
+    # =========================
     bytes_data = uploaded_file.getvalue()
-    st.sidebar.success("File uploaded successfully")
-
-    # Robust decoding from mentor's new file
-    try:
-        data = bytes_data.decode("utf-8")
-    except UnicodeDecodeError:
-        decoded = None
-        for enc in ("utf-8-sig", "cp1252", "latin-1"):
-            try:
-                decoded = bytes_data.decode(enc)
-                break
-            except UnicodeDecodeError:
-                continue
-        if decoded is None:
-            decoded = bytes_data.decode("utf-8", errors="replace")
-        data = decoded
-
+    # Decode WhatsApp chat in UTF-8 to preserve emojis
+    data = bytes_data.decode("utf-8", errors="ignore")
+    # =========================
+    # 🧹 Preprocess and Store
+    # =========================
     df = preprocessor.preprocess(data)
+    st.session_state.df = df  # optional, if you want to persist between runs
+
+    # =========================
+    # 📊 Basic Chat Info
+    # =========================
+    st.subheader("Parsed Chat Summary")
+    st.write(f"📊 Total messages parsed: {len(df)}")
+
+    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+    df = df.dropna(subset=['Date'])
+    st.write(f"📅 Date range: {df['Date'].min().date()} to {df['Date'].max().date()}")
+    st.write("Sample data:", df.head())
+
 
     st.subheader("Parsed Chat Summary")
     st.write(f"📊 Total messages parsed: {len(df)}")
+    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')  # convert invalids to NaT
+    df = df.dropna(subset=['Date'])  # drop rows with no valid date
+    st.write(f"📅 Date range: {df['Date'].min().date()} to {df['Date'].max().date()}")
+
     st.write(f"📅 Date range: {df['Date'].min().date()} to {df['Date'].max().date()}")
     st.write("Sample data:", df.head())
 
@@ -42,7 +55,9 @@ if uploaded_file is not None:
     selected_user = st.sidebar.selectbox("Show analysis wrt", user_list)
 
     if st.sidebar.button("Generate Analysis"):
-        num_messages,words,num_media_messages,num_links= helper.fetch_stats(selected_user,df)
+        st.session_state.analysis_generated = True
+    if st.session_state.analysis_generated:
+        num_messages, words, num_media_messages, num_links = helper.fetch_stats(selected_user, df)
         st.title("Top Statistics")
         col1,col2,col3,col4=st.columns(4)
         with col1:
@@ -73,6 +88,13 @@ if uploaded_file is not None:
         ax.plot(daily_timeline['only_date'], daily_timeline['Message'], color='black')
         plt.xticks(rotation='vertical')
         st.pyplot(fig)
+
+        # 😊 Emoji Usage Chart
+        if selected_user == 'Overall':
+            df = st.session_state.df
+        if st.checkbox("Show Emoji Usage Chart"):
+            helper.create_emoji_bar_chart(df)
+
 
         #activity_map
         st.title("Activity Map")
@@ -114,6 +136,9 @@ if uploaded_file is not None:
             with col2:
                 st.header("Percentage Wise Contribution Of Members")
                 st.dataframe(new_df)
+                
+
+
 
 
         # === WordCloud ===

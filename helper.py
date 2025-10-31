@@ -243,3 +243,57 @@ def activity_heatmap(selected_user, df):
     except Exception as e:
         print(f"⚠️ Error occurred while generating heatmap: {e}")
         return pd.DataFrame()
+
+# =========================
+# 😊 Emoji Usage Bar Chart
+# =========================
+def create_emoji_bar_chart(df):
+    import pandas as pd
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    import streamlit as st
+    from collections import Counter
+    import emoji
+
+    # --- Find the correct message column ---
+    message_col = None
+    for col in df.columns:
+        if "message" in col.lower():
+            message_col = col
+            break
+
+    if message_col is None:
+        st.error("❌ Couldn't find a column containing messages.")
+        st.write("Columns found:", list(df.columns))
+        return
+
+    # --- Extract emojis from messages safely ---
+    def extract_emojis(text):
+        if not isinstance(text, str):
+            return []
+        return [char for char in text if emoji.is_emoji(char)]
+
+    # --- Collect all emojis ---
+    all_emojis = []
+    for msg in df[message_col]:
+        all_emojis.extend(extract_emojis(msg))
+
+    if len(all_emojis) == 0:
+        st.warning("No emojis detected 😅 — check if your chat export includes them (try without media).")
+        return
+
+    # --- Count top emojis ---
+    emoji_counts = Counter(all_emojis).most_common(10)
+    emoji_df = pd.DataFrame(emoji_counts, columns=['Emoji', 'Count'])
+
+    # --- Plot bar chart ---
+    st.subheader("📊 Top 10 Emojis Used in Chat")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.barplot(data=emoji_df, x='Emoji', y='Count', palette='viridis', ax=ax)
+    ax.set_title("Top 10 Emojis Used in Chat", fontsize=14)
+    ax.set_xlabel("Emoji", fontsize=12)
+    ax.set_ylabel("Count", fontsize=12)
+    plt.tight_layout()
+
+    # --- Display chart in Streamlit ---
+    st.pyplot(fig)
