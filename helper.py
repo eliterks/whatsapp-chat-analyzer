@@ -293,3 +293,67 @@ def create_emoji_bar_chart(df):
     
     plt.tight_layout()
     st.pyplot(fig)
+
+# =========================
+# ⏱️ Average Response Time
+# =========================
+def average_response_time(df):
+    import pandas as pd
+    import numpy as np
+
+    # Ensure proper datetime format
+    if 'Date' not in df.columns or 'Sender' not in df.columns:
+        print("⚠️ Required columns missing.")
+        return pd.DataFrame(columns=['Sender', 'Avg_Response_Time (min)'])
+
+    df = df.sort_values('Date')
+
+    # Calculate time difference between consecutive messages
+    df['Time_Diff'] = df['Date'].diff().dt.total_seconds() / 60  # in minutes
+    df['Prev_Sender'] = df['Sender'].shift()
+
+    # Response time only when sender changes
+    df['Valid_Response'] = np.where(df['Sender'] != df['Prev_Sender'], df['Time_Diff'], np.nan)
+
+    avg_response = (
+        df.groupby('Sender')['Valid_Response']
+        .mean()
+        .round(2)
+        .dropna()
+        .reset_index()
+        .rename(columns={'Valid_Response': 'Avg_Response_Time (min)'})
+    )
+
+    return avg_response
+
+# =========================
+# ⏱️ Average Response Time
+# =========================
+def average_response_time(df):
+    import pandas as pd
+    import numpy as np
+
+    # Ensure proper datetime format
+    if 'Date' not in df.columns or 'Sender' not in df.columns:
+        print("⚠️ Required columns missing.")
+        return pd.DataFrame(columns=['Sender', 'Avg_Response_Time (min)'])
+
+    df = df.sort_values('Date')
+
+    # Calculate time difference between consecutive messages
+    df['Time_Diff'] = df['Date'].diff().dt.total_seconds() / 60  # in minutes
+    df['Prev_Sender'] = df['Sender'].shift()
+
+    # Response time only when sender changes
+    df['Valid_Response'] = np.where(df['Sender'] != df['Prev_Sender'], df['Time_Diff'], np.nan)
+
+    avg_response = (
+        df.groupby('Sender')['Valid_Response']
+        .mean()
+        .round(2)
+        .dropna()
+        .reset_index()
+        .rename(columns={'Valid_Response': 'Avg_Response_Time (min)'})
+    )
+
+    return avg_response
