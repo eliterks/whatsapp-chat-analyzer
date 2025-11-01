@@ -3,6 +3,8 @@ import preprocessor,helper
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+import export_helper
+import datetime
 
 if "analysis_generated" not in st.session_state:
     st.session_state.analysis_generated = False
@@ -81,7 +83,12 @@ if uploaded_file is not None:
 
     if st.sidebar.button("Generate Analysis"):
         st.session_state.analysis_generated = True
+    
     if st.session_state.analysis_generated:
+        # Store analysis data for exports
+        if 'export_data' not in st.session_state:
+            st.session_state.export_data = {}
+        
         num_messages, words, num_media_messages, num_links = helper.fetch_stats(selected_user, df)
         st.title("Top Statistics")
         col1,col2,col3,col4=st.columns(4)
@@ -194,4 +201,86 @@ if uploaded_file is not None:
         st.title("Most Common Emojis")
         emoji_df= helper.emoji_helper(selected_user,df)
         st.dataframe(emoji_df)
+
+        # Store all data for export
+        st.session_state.export_data = {
+            'stats': (num_messages, words, num_media_messages, num_links),
+            'monthly_timeline': timeline,
+            'daily_timeline': daily_timeline,
+            'busy_day': busy_day,
+            'busy_month': busy_month,
+            'most_common_df': most_common_df,
+            'emoji_df': emoji_df,
+            'user_heatmap': user_heatmap,
+            'top_users_data': (x, new_df) if selected_user == 'Overall' else None
+        }
+
+        # =========================
+        # 📥 Export Section
+        # =========================
+        st.markdown("---")
+        st.title("📥 Export Analysis Results")
+        st.write("Download your chat analysis in PDF or Excel format")
+        
+        col1, col2, col3 = st.columns([1, 1, 2])
+        
+        with col1:
+            # Generate PDF
+            try:
+                pdf_buffer = export_helper.generate_pdf_report(
+                    selected_user, df,
+                    st.session_state.export_data['stats'],
+                    st.session_state.export_data['monthly_timeline'],
+                    st.session_state.export_data['daily_timeline'],
+                    st.session_state.export_data['busy_day'],
+                    st.session_state.export_data['busy_month'],
+                    st.session_state.export_data['most_common_df'],
+                    st.session_state.export_data['emoji_df'],
+                    st.session_state.export_data['user_heatmap'],
+                    st.session_state.export_data['top_users_data']
+                )
+                
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename_pdf = f"whatsapp_analysis_{selected_user}_{timestamp}.pdf"
+                
+                st.download_button(
+                    label="📄 Download PDF Report",
+                    data=pdf_buffer,
+                    file_name=filename_pdf,
+                    mime="application/pdf",
+                    help="Download a comprehensive PDF report with all charts and statistics"
+                )
+            except Exception as e:
+                st.error(f"Error generating PDF: {str(e)}")
+        
+        with col2:
+            # Generate Excel/CSV
+            try:
+                csv_buffer = export_helper.generate_csv_summary(
+                    selected_user, df,
+                    st.session_state.export_data['stats'],
+                    st.session_state.export_data['monthly_timeline'],
+                    st.session_state.export_data['daily_timeline'],
+                    st.session_state.export_data['busy_day'],
+                    st.session_state.export_data['busy_month'],
+                    st.session_state.export_data['most_common_df'],
+                    st.session_state.export_data['emoji_df'],
+                    st.session_state.export_data['user_heatmap']
+                )
+                
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename_excel = f"whatsapp_analysis_{selected_user}_{timestamp}.xlsx"
+                
+                st.download_button(
+                    label="📊 Download Excel Report",
+                    data=csv_buffer,
+                    file_name=filename_excel,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Download analysis data in Excel format with multiple sheets"
+                )
+            except Exception as e:
+                st.error(f"Error generating Excel: {str(e)}")
+        
+        with col3:
+            st.info("💡 **Tip**: PDF includes all visualizations, while Excel contains raw data for further analysis.")
 

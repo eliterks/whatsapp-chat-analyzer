@@ -18,6 +18,7 @@ https://chat-analyze.streamlit.app/
 - 🔡 Emoji and text statistics  
 - 🤖 ML-based classification of users into active/inactive  
 - 📊 Evaluation of Logistic Regression, KNN, Decision Tree (Tuned & Untuned)
+- **📥 NEW: Export analysis as PDF or Excel** - Save and share your results!
 
 ---
 
@@ -75,6 +76,8 @@ Each model is evaluated using:
 | `Emoji`           | Extracting emojis from messages              |
 | `Sklearn`         | ML models, metrics, preprocessing            |
 | `Regex`           | Parsing raw WhatsApp text format             |
+| `ReportLab`       | PDF report generation                        |
+| `XlsxWriter`      | Excel export functionality                   |
 
 ---
 
@@ -97,7 +100,10 @@ whatsapp-chat-analyzer/
 ├── app.py             # Main Streamlit app  
 ├── helper.py          # Functions for visualization & stats  
 ├── preprocessor.py    # WhatsApp text parsing logic  
+├── export_helper.py   # PDF & Excel export functions (NEW)
 ├── wca_ongoing.ipynb  # ML model training, tuning, evaluation  
 ├── requirements.txt   # Python dependencies  
+├── EXPORT_GUIDE.md    # Export feature guide (NEW)
+└── README.md          # Project documentation  
 └── README.md          # Project documentation  
 
