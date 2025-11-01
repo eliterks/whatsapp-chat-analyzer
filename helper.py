@@ -254,46 +254,42 @@ def create_emoji_bar_chart(df):
     import streamlit as st
     from collections import Counter
     import emoji
+    import matplotlib.font_manager as fm
 
-    # --- Find the correct message column ---
-    message_col = None
-    for col in df.columns:
-        if "message" in col.lower():
-            message_col = col
-            break
-
-    if message_col is None:
-        st.error("❌ Couldn't find a column containing messages.")
-        st.write("Columns found:", list(df.columns))
-        return
-
-    # --- Extract emojis from messages safely ---
+    # --- Extract emojis ---
     def extract_emojis(text):
         if not isinstance(text, str):
             return []
-        return [char for char in text if emoji.is_emoji(char)]
+        return [ch for ch in text if ch in emoji.EMOJI_DATA]
 
-    # --- Collect all emojis ---
     all_emojis = []
-    for msg in df[message_col]:
+    for msg in df['Message']:
         all_emojis.extend(extract_emojis(msg))
 
-    if len(all_emojis) == 0:
-        st.warning("No emojis detected 😅 — check if your chat export includes them (try without media).")
+    if not all_emojis:
+        st.warning("No emojis detected 😅")
         return
 
-    # --- Count top emojis ---
     emoji_counts = Counter(all_emojis).most_common(10)
-    emoji_df = pd.DataFrame(emoji_counts, columns=['Emoji', 'Count'])
+    emoji_df = pd.DataFrame(emoji_counts, columns=['emoji', 'count'])
 
-    # --- Plot bar chart ---
-    st.subheader("📊 Top 10 Emojis Used in Chat")
-    fig, ax = plt.subplots(figsize=(8, 5))
-    sns.barplot(data=emoji_df, x='Emoji', y='Count', palette='viridis', ax=ax)
-    ax.set_title("Top 10 Emojis Used in Chat", fontsize=14)
+    # --- Load a system font that supports emojis ---
+    try:
+        font_path = "C:\\Windows\\Fonts\\seguiemj.ttf"  # Windows font
+        prop = fm.FontProperties(fname=font_path)
+        plt.rcParams['font.family'] = prop.get_name()
+    except Exception as e:
+        st.warning("Emoji font not found, using default font.")
+
+    # --- Plot ---
+    fig, ax = plt.subplots(figsize=(8, 4))
+    sns.barplot(data=emoji_df, x='emoji', y='count', palette='viridis', ax=ax)
+
+    # Make x-axis emojis large and clear
+    ax.set_xticklabels(emoji_df['emoji'], fontproperties=prop, fontsize=22)
+    ax.set_title("Top 10 Emojis Used", fontsize=14)
     ax.set_xlabel("Emoji", fontsize=12)
     ax.set_ylabel("Count", fontsize=12)
+    
     plt.tight_layout()
-
-    # --- Display chart in Streamlit ---
     st.pyplot(fig)
