@@ -299,46 +299,41 @@ def create_emoji_bar_chart(df):
 # =========================
 def average_response_time(df):
     import pandas as pd
-    import numpy as np
 
-    # Ensure proper datetime format
-    if 'Date' not in df.columns or 'Sender' not in df.columns:
-        print("⚠️ Required columns missing.")
-        return pd.DataFrame(columns=['Sender', 'Avg_Response_Time (min)'])
+    if df.empty or 'Date' not in df.columns or 'Sender' not in df.columns:
+        print("⚠️ Missing required columns for response time calculation.")
+        return pd.DataFrame()
 
-    df = df.sort_values('Date')
+    # Clean data
+    df = df.sort_values(by='Date').reset_index(drop=True)
+    df['Sender'] = df['Sender'].fillna('Unknown')
 
-    # Calculate time difference between consecutive messages
-    df['Time_Diff'] = df['Date'].diff().dt.total_seconds() / 60  # in minutes
-    df['Prev_Sender'] = df['Sender'].shift()
+    # Calculate time differences between consecutive messages
+    df['TimeDiff'] = df['Date'].diff().dt.total_seconds()
 
-    # Response time only when sender changes
-    df['Valid_Response'] = np.where(df['Sender'] != df['Prev_Sender'], df['Time_Diff'], np.nan)
+    # Detect when sender changes (actual reply)
+    df['SenderChange'] = df['Sender'].ne(df['Sender'].shift(1))
 
+    # Filter valid reply rows (ignore system messages, NaN)
+    df_reply = df[df['SenderChange'] & df['TimeDiff'].notna()].copy()
+
+    if df_reply.empty:
+        return pd.DataFrame()
+
+    # Group by sender and compute average response time
     avg_response = (
-        df.groupby('Sender')['Valid_Response']
+        df_reply.groupby('Sender')['TimeDiff']
         .mean()
-        .round(2)
-        .dropna()
         .reset_index()
-        .rename(columns={'Valid_Response': 'Avg_Response_Time (min)'})
+        .rename(columns={'TimeDiff': 'Avg Response Time (seconds)'})
     )
 
-    return avg_response
+    # Round and convert to readable units
+    avg_response['Avg Response Time (minutes)'] = (avg_response['Avg Response Time (seconds)'] / 60).round(2)
+    avg_response['Avg Response Time (seconds)'] = avg_response['Avg Response Time (seconds)'].round(2)
 
-# =========================
-# ⏱️ Average Response Time
-# =========================
-def average_response_time(df):
-    import pandas as pd
-    import numpy as np
+    return avg_response[['Sender', 'Avg Response Time (minutes)', 'Avg Response Time (seconds)']]
 
-    # Ensure proper datetime format
-    if 'Date' not in df.columns or 'Sender' not in df.columns:
-        print("⚠️ Required columns missing.")
-        return pd.DataFrame(columns=['Sender', 'Avg_Response_Time (min)'])
-
-    df = df.sort_values('Date')
 
     # Calculate time difference between consecutive messages
     df['Time_Diff'] = df['Date'].diff().dt.total_seconds() / 60  # in minutes

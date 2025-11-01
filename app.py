@@ -166,12 +166,43 @@ if uploaded_file is not None:
         
         st.markdown("---")
         
+                # =========================
+        # ⏱️ Average Response Time per User
+        # =========================
+        st.markdown("---")
+        st.title("⏱️ Average Response Time per User")
+
+        try:
+            avg_response_df = helper.average_response_time(df)
+
+            if avg_response_df is not None and not avg_response_df.empty:
+                st.dataframe(avg_response_df)
+
+                fig, ax = plt.subplots(figsize=(8, 5))
+                sns.barplot(
+                    data=avg_response_df,
+                    x='Sender',
+                    y='Avg Response Time (seconds)',
+                    palette='crest',
+                    ax=ax
+                )
+                plt.xticks(rotation=45)
+                ax.set_title("Average Response Time (seconds)")
+                st.pyplot(fig)
+            else:
+                st.info("No sufficient data to calculate response times.")
+        except Exception as e:
+            st.error(f"⚠️ Error calculating response time: {e}")
+
+
         # 😊 Emoji Usage Bar Chart (Optional)
         
         if selected_user == 'Overall':
             df = st.session_state.df  # use stored dataframe
         if st.checkbox("📊 Show Emoji Usage Bar Chart", value=False):
             helper.create_emoji_bar_chart(df)
+
+
 
 import streamlit as st
 
@@ -241,20 +272,3 @@ if st.session_state.dark_mode:
 else:
     st.markdown("<style>html { filter: none; }</style>", unsafe_allow_html=True)
 
-# =========================
-# ⏱️ Average Response Time Visualization
-# =========================
-import seaborn as sns
-import matplotlib.pyplot as plt
-
-st.title("Average Response Time ⏱️")
-avg_response_df = helper.average_response_time(df)
-
-if avg_response_df.empty:
-    st.warning("Not enough data to calculate response times.")
-else:
-    fig, ax = plt.subplots()
-    sns.barplot(data=avg_response_df, x='Sender', y='Avg_Response_Time (min)', palette='mako', ax=ax)
-    ax.set_title("Average Response Time per User (in minutes)")
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
