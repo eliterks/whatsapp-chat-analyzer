@@ -14,12 +14,47 @@ if st.sidebar.button("Clear Cache"):
 uploaded_file = st.file_uploader("Choose a WhatsApp chat file")
 
 if uploaded_file is not None:
+    # -------------------------
+    # Handle new uploads & session
+    # -------------------------
+    uploaded_filename = uploaded_file.name
+    # If the filename changed, reset analysis state to avoid stale data
+    if st.session_state.get("last_uploaded") != uploaded_filename:
+        st.session_state.analysis_generated = False
+        st.session_state.last_uploaded = uploaded_filename
+        # clear previously stored df if present
+        st.session_state.df = None
+
     # =========================
     # 📂 File Upload & Decoding
     # =========================
     bytes_data = uploaded_file.getvalue()
     # Decode WhatsApp chat in UTF-8 to preserve emojis
-    data = bytes_data.decode("utf-8", errors="ignore")
+    try:
+        data = bytes_data.decode("utf-8")
+    except Exception:
+        # fallback to ignore errors if strict decode fails
+        data = bytes_data.decode("utf-8", errors="ignore")
+
+    # Basic extension hint: most WhatsApp exports are .txt
+    if not uploaded_filename.lower().endswith((".txt",)):
+        st.warning("Uploaded file does not have a .txt extension. The app will validate the content format below.")
+
+    # Validate content looks like WhatsApp export using the preprocessor's header regex
+    try:
+        header_ok = bool(preprocessor.HEADER_RE.search(data))
+    except Exception:
+        header_ok = False
+
+    if not header_ok:
+        st.error(
+            "Uploaded file doesn't look like a WhatsApp chat export.\n"
+            "Expected lines like 'dd/mm/yy, hh:mm - Sender: message'.\n"
+            "Please upload a valid WhatsApp chat export (usually a .txt file)."
+        )
+        # Stop further execution in Streamlit to avoid crashes on wrong formats
+        st.stop()
+
     # =========================
     # 🧹 Preprocess and Store
     # =========================
