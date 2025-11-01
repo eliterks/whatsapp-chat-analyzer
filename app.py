@@ -37,16 +37,6 @@ if uploaded_file is not None:
     st.write(f"📅 Date range: {df['Date'].min().date()} to {df['Date'].max().date()}")
     st.write("Sample data:", df.head())
 
-
-    st.subheader("Parsed Chat Summary")
-    st.write(f"📊 Total messages parsed: {len(df)}")
-    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')  # convert invalids to NaT
-    df = df.dropna(subset=['Date'])  # drop rows with no valid date
-    st.write(f"📅 Date range: {df['Date'].min().date()} to {df['Date'].max().date()}")
-
-    st.write(f"📅 Date range: {df['Date'].min().date()} to {df['Date'].max().date()}")
-    st.write("Sample data:", df.head())
-
     #fetch users
     user_list=df['Sender'].unique().tolist()
     #user_list.remove('Meta AI')
