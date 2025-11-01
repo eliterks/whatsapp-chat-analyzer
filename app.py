@@ -37,16 +37,6 @@ if uploaded_file is not None:
     st.write(f"📅 Date range: {df['Date'].min().date()} to {df['Date'].max().date()}")
     st.write("Sample data:", df.head())
 
-
-    st.subheader("Parsed Chat Summary")
-    st.write(f"📊 Total messages parsed: {len(df)}")
-    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')  # convert invalids to NaT
-    df = df.dropna(subset=['Date'])  # drop rows with no valid date
-    st.write(f"📅 Date range: {df['Date'].min().date()} to {df['Date'].max().date()}")
-
-    st.write(f"📅 Date range: {df['Date'].min().date()} to {df['Date'].max().date()}")
-    st.write("Sample data:", df.head())
-
     #fetch users
     user_list=df['Sender'].unique().tolist()
     #user_list.remove('Meta AI')
@@ -163,6 +153,7 @@ if uploaded_file is not None:
         st.title("Most Common Emojis")
         emoji_df = helper.emoji_helper(selected_user, df)
         st.dataframe(emoji_df)
+        emoji-bar-chart-fix
         st.markdown("---")
         
         # 😊 Emoji Usage Bar Chart (Optional)
@@ -171,73 +162,3 @@ if uploaded_file is not None:
             df = st.session_state.df  # use stored dataframe
         if st.checkbox("📊 Show Emoji Usage Bar Chart", value=False):
             helper.create_emoji_bar_chart(df)
-
-
-
-import streamlit as st
-
-# Initialize dark mode state
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False
-
-# --- Button beside Deploy (top-right) ---
-st.markdown("""
-    <style>
-        /* Position theme toggle beside the "Deploy" button */
-        #theme-toggle {
-            position: fixed;
-            top: 10px;
-            right: 100px; /* Adjust spacing to sit beside Deploy */
-            z-index: 9999;
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            font-size: 20px;
-        }
-        #theme-toggle:hover {
-            transform: scale(1.2);
-        }
-    </style>
-
-    <script>
-        // Reload page after click to apply CSS instantly
-        const toggleBtn = document.getElementById("theme-toggle");
-        if (toggleBtn) {
-            toggleBtn.addEventListener("click", () => location.reload());
-        }
-    </script>
-""", unsafe_allow_html=True)
-
-# Button itself
-if st.button("🌙" if st.session_state.dark_mode else "☀️", key="deploy_theme_button"):
-    st.session_state.dark_mode = not st.session_state.dark_mode
-
-# Inject positioning for Streamlit-generated button (since we can't edit toolbar DOM)
-st.markdown("""
-    <style>
-        div[data-testid="stButton"] button[kind="primary"] {
-            position: fixed !important;
-            top: 10px !important;
-            right: 100px !important;
-            z-index: 9999 !important;
-            background: transparent !important;
-            border: none !important;
-            font-size: 20px !important;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- Global Theme Inversion ---
-if st.session_state.dark_mode:
-    st.markdown("""
-        <style>
-            html {
-                filter: invert(1) hue-rotate(180deg);
-            }
-            img, video {
-                filter: invert(1) hue-rotate(180deg);
-            }
-        </style>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown("<style>html { filter: none; }</style>", unsafe_allow_html=True)
