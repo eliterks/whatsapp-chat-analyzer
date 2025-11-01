@@ -89,13 +89,6 @@ if uploaded_file is not None:
         plt.xticks(rotation='vertical')
         st.pyplot(fig)
 
-        # 😊 Emoji Usage Chart
-        if selected_user == 'Overall':
-            df = st.session_state.df
-        if st.checkbox("Show Emoji Usage Chart"):
-            helper.create_emoji_bar_chart(df)
-
-
         #activity_map
         st.title("Activity Map")
         col1,col2=st.columns(2)
@@ -166,9 +159,20 @@ if uploaded_file is not None:
         st.pyplot(fig)
 
         #emoji_analysis
+        
         st.title("Most Common Emojis")
-        emoji_df= helper.emoji_helper(selected_user,df)
+        emoji_df = helper.emoji_helper(selected_user, df)
         st.dataframe(emoji_df)
+        st.markdown("---")
+        
+        # 😊 Emoji Usage Bar Chart (Optional)
+        
+        if selected_user == 'Overall':
+            df = st.session_state.df  # use stored dataframe
+        if st.checkbox("📊 Show Emoji Usage Bar Chart", value=False):
+            helper.create_emoji_bar_chart(df)
+
+
 
 import streamlit as st
 
