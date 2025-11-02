@@ -247,7 +247,7 @@ def activity_heatmap(selected_user, df):
 # =========================
 # 😊 Emoji Usage Bar Chart
 # =========================
-def create_emoji_bar_chart(df):
+def create_emoji_bar_chart(selected_user, df):
     import pandas as pd
     import seaborn as sns
     import matplotlib.pyplot as plt
@@ -255,6 +255,12 @@ def create_emoji_bar_chart(df):
     from collections import Counter
     import emoji
     import matplotlib.font_manager as fm
+    import os
+    import platform
+
+    # Filter by user if not Overall
+    if selected_user != 'Overall':
+        df = df[df['Sender'] == selected_user]
 
     # --- Extract emojis ---
     def extract_emojis(text):
@@ -274,10 +280,19 @@ def create_emoji_bar_chart(df):
     emoji_df = pd.DataFrame(emoji_counts, columns=['emoji', 'count'])
 
     # --- Load a system font that supports emojis ---
+    prop = None
     try:
-        font_path = "C:\\Windows\\Fonts\\seguiemj.ttf"  # Windows font
-        prop = fm.FontProperties(fname=font_path)
-        plt.rcParams['font.family'] = prop.get_name()
+        system = platform.system()
+        if system == 'Windows':
+            font_path = "C:\\Windows\\Fonts\\seguiemj.ttf"
+        elif system == 'Darwin':  # macOS
+            font_path = "/System/Library/Fonts/Apple Color Emoji.ttc"
+        else:  # Linux
+            font_path = "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"
+        
+        if os.path.exists(font_path):
+            prop = fm.FontProperties(fname=font_path)
+            plt.rcParams['font.family'] = prop.get_name()
     except Exception as e:
         st.warning("Emoji font not found, using default font.")
 
@@ -286,10 +301,80 @@ def create_emoji_bar_chart(df):
     sns.barplot(data=emoji_df, x='emoji', y='count', palette='viridis', ax=ax)
 
     # Make x-axis emojis large and clear
-    ax.set_xticklabels(emoji_df['emoji'], fontproperties=prop, fontsize=22)
+    if prop is not None:
+        ax.set_xticklabels(emoji_df['emoji'], fontproperties=prop, fontsize=22)
+    else:
+        ax.set_xticklabels(emoji_df['emoji'], fontsize=22)
     ax.set_title("Top 10 Emojis Used", fontsize=14)
     ax.set_xlabel("Emoji", fontsize=12)
     ax.set_ylabel("Count", fontsize=12)
     
     plt.tight_layout()
     st.pyplot(fig)
+
+
+# =========================
+# 😊 Generate Emoji Bar Chart Figure (for PDF export)
+# =========================
+def generate_emoji_bar_chart_figure(selected_user, df):
+    """Generate emoji bar chart figure without displaying it (for PDF export)"""
+    import pandas as pd
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    from collections import Counter
+    import emoji
+    import matplotlib.font_manager as fm
+    import os
+    import platform
+
+    # Filter by user if not Overall
+    if selected_user != 'Overall':
+        df = df[df['Sender'] == selected_user]
+
+    # --- Extract emojis ---
+    def extract_emojis(text):
+        if not isinstance(text, str):
+            return []
+        return [ch for ch in text if ch in emoji.EMOJI_DATA]
+
+    all_emojis = []
+    for msg in df['Message']:
+        all_emojis.extend(extract_emojis(msg))
+
+    if not all_emojis:
+        return None  # No emojis found
+
+    emoji_counts = Counter(all_emojis).most_common(10)
+    emoji_df = pd.DataFrame(emoji_counts, columns=['emoji', 'count'])
+
+    # --- Load a system font that supports emojis ---
+    prop = None
+    try:
+        system = platform.system()
+        if system == 'Windows':
+            font_path = "C:\\Windows\\Fonts\\seguiemj.ttf"
+        elif system == 'Darwin':  # macOS
+            font_path = "/System/Library/Fonts/Apple Color Emoji.ttc"
+        else:  # Linux
+            font_path = "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"
+        
+        if os.path.exists(font_path):
+            prop = fm.FontProperties(fname=font_path)
+    except Exception:
+        pass
+
+    # --- Plot ---
+    fig, ax = plt.subplots(figsize=(10, 5))
+    sns.barplot(data=emoji_df, x='emoji', y='count', palette='viridis', ax=ax)
+
+    # Make x-axis emojis large and clear
+    if prop is not None:
+        ax.set_xticklabels(emoji_df['emoji'], fontproperties=prop, fontsize=22)
+    else:
+        ax.set_xticklabels(emoji_df['emoji'], fontsize=22)
+    ax.set_title("Top 10 Emojis Used", fontsize=14, weight='bold')
+    ax.set_xlabel("Emoji", fontsize=12)
+    ax.set_ylabel("Count", fontsize=12)
+    
+    plt.tight_layout()
+    return fig

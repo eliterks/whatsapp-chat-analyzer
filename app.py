@@ -243,10 +243,8 @@ if uploaded_file is not None:
         
         # 😊 Emoji Usage Bar Chart (Optional)
         
-        if selected_user == 'Overall':
-            df = st.session_state.df  # use stored dataframe
         if st.checkbox("📊 Show Emoji Usage Bar Chart", value=False):
-            helper.create_emoji_bar_chart(df)        
+            helper.create_emoji_bar_chart(selected_user, df)        
         # === Comprehensive Export Section ===
         st.markdown("---")
         st.subheader("📦 Export Complete Analysis")
@@ -360,6 +358,11 @@ if uploaded_file is not None:
                 ax_words.set_title('Most Common Words')
                 plt.tight_layout()
                 charts_dict['Most Common Words'] = fig_words
+                
+                # Emoji Bar Chart
+                fig_emoji_bar = helper.generate_emoji_bar_chart_figure(selected_user, df)
+                if fig_emoji_bar is not None:
+                    charts_dict['Emoji Usage Bar Chart'] = fig_emoji_bar
                 
                 # Top Users Chart (if Overall)
                 if selected_user == 'Overall':
