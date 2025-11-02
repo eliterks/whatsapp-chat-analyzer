@@ -3,6 +3,8 @@ import preprocessor,helper
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+import export_helper
+from datetime import datetime
 
 if "analysis_generated" not in st.session_state:
     st.session_state.analysis_generated = False
@@ -14,12 +16,47 @@ if st.sidebar.button("Clear Cache"):
 uploaded_file = st.file_uploader("Choose a WhatsApp chat file")
 
 if uploaded_file is not None:
+    # -------------------------
+    # Handle new uploads & session
+    # -------------------------
+    uploaded_filename = uploaded_file.name
+    # If the filename changed, reset analysis state to avoid stale data
+    if st.session_state.get("last_uploaded") != uploaded_filename:
+        st.session_state.analysis_generated = False
+        st.session_state.last_uploaded = uploaded_filename
+        # clear previously stored df if present
+        st.session_state.df = None
+
     # =========================
     # 📂 File Upload & Decoding
     # =========================
     bytes_data = uploaded_file.getvalue()
     # Decode WhatsApp chat in UTF-8 to preserve emojis
-    data = bytes_data.decode("utf-8", errors="ignore")
+    try:
+        data = bytes_data.decode("utf-8")
+    except Exception:
+        # fallback to ignore errors if strict decode fails
+        data = bytes_data.decode("utf-8", errors="ignore")
+
+    # Basic extension hint: most WhatsApp exports are .txt
+    if not uploaded_filename.lower().endswith((".txt",)):
+        st.warning("Uploaded file does not have a .txt extension. The app will validate the content format below.")
+
+    # Validate content looks like WhatsApp export using the preprocessor's header regex
+    try:
+        header_ok = bool(preprocessor.HEADER_RE.search(data))
+    except Exception:
+        header_ok = False
+
+    if not header_ok:
+        st.error(
+            "Uploaded file doesn't look like a WhatsApp chat export.\n"
+            "Expected lines like 'dd/mm/yy, hh:mm - Sender: message'.\n"
+            "Please upload a valid WhatsApp chat export (usually a .txt file)."
+        )
+        # Stop further execution in Streamlit to avoid crashes on wrong formats
+        st.stop()
+
     # =========================
     # 🧹 Preprocess and Store
     # =========================
@@ -37,16 +74,6 @@ if uploaded_file is not None:
     st.write(f"📅 Date range: {df['Date'].min().date()} to {df['Date'].max().date()}")
     st.write("Sample data:", df.head())
 
-
-    st.subheader("Parsed Chat Summary")
-    st.write(f"📊 Total messages parsed: {len(df)}")
-    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')  # convert invalids to NaT
-    df = df.dropna(subset=['Date'])  # drop rows with no valid date
-    st.write(f"📅 Date range: {df['Date'].min().date()} to {df['Date'].max().date()}")
-
-    st.write(f"📅 Date range: {df['Date'].min().date()} to {df['Date'].max().date()}")
-    st.write("Sample data:", df.head())
-
     #fetch users
     user_list=df['Sender'].unique().tolist()
     #user_list.remove('Meta AI')
@@ -56,8 +83,18 @@ if uploaded_file is not None:
 
     if st.sidebar.button("Generate Analysis"):
         st.session_state.analysis_generated = True
+    
     if st.session_state.analysis_generated:
         num_messages, words, num_media_messages, num_links = helper.fetch_stats(selected_user, df)
+        
+        # Store statistics in session state for export
+        st.session_state.stats = {
+            'messages': num_messages,
+            'words': words,
+            'media': num_media_messages,
+            'links': num_links
+        }
+        
         st.title("Top Statistics")
         col1,col2,col3,col4=st.columns(4)
         with col1:
@@ -72,6 +109,44 @@ if uploaded_file is not None:
         with col4:
             st.header("Total No Of Links Shared")
             st.title(num_links)
+        
+        # === Export Options ===
+        st.markdown("---")
+        st.subheader("📥 Export Analysis Results")
+        
+        # Get date range for export
+        date_range = f"{df['Date'].min().date()} to {df['Date'].max().date()}"
+        
+        col_export1, col_export2 = st.columns(2)
+        
+        with col_export1:
+            # Export basic statistics to CSV
+            csv_stats = export_helper.export_statistics_csv(
+                num_messages, words, num_media_messages, num_links
+            )
+            st.download_button(
+                label="📊 Download Statistics (CSV)",
+                data=csv_stats,
+                file_name=f"whatsapp_stats_{selected_user}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                help="Download basic statistics as CSV file"
+            )
+        
+        with col_export2:
+            # Export basic statistics to PDF
+            pdf_stats = export_helper.export_statistics_pdf(
+                selected_user, num_messages, words, 
+                num_media_messages, num_links, date_range
+            )
+            st.download_button(
+                label="📄 Download Statistics (PDF)",
+                data=pdf_stats,
+                file_name=f"whatsapp_stats_{selected_user}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                mime="application/pdf",
+                help="Download basic statistics as PDF file"
+            )
+        
+        st.markdown("---")
 
         # monthly timeline
         st.title("Monthly Timeline")
@@ -197,9 +272,8 @@ if uploaded_file is not None:
 
         # 😊 Emoji Usage Bar Chart (Optional)
         
-        if selected_user == 'Overall':
-            df = st.session_state.df  # use stored dataframe
         if st.checkbox("📊 Show Emoji Usage Bar Chart", value=False):
+average-response-time-fix
             helper.create_emoji_bar_chart(df)
 
 
@@ -272,3 +346,163 @@ if st.session_state.dark_mode:
 else:
     st.markdown("<style>html { filter: none; }</style>", unsafe_allow_html=True)
 
+
+            helper.create_emoji_bar_chart(selected_user, df)        
+        # === Comprehensive Export Section ===
+        st.markdown("---")
+        st.subheader("📦 Export Complete Analysis")
+        st.write("Download all analysis results including statistics, timelines, word frequency, and emoji analysis.")
+        
+        col_full1, col_full2 = st.columns(2)
+        
+        with col_full1:
+            # Prepare data for Excel export
+            timeline_df = helper.monthly_timeline(selected_user, df)
+            daily_timeline_df = helper.daily_timeline(selected_user, df)
+            busy_users_df = None
+            
+            if selected_user == 'Overall':
+                _, busy_users_df = helper.most_busy_users(df)
+            
+            # Export complete analysis to Excel
+            try:
+                excel_data = export_helper.export_complete_analysis_csv(
+                    selected_user, df, st.session_state.stats,
+                    timeline_df=timeline_df,
+                    daily_timeline_df=daily_timeline_df,
+                    common_words_df=most_common_df,
+                    emoji_df=emoji_df,
+                    busy_users_df=busy_users_df
+                )
+                st.download_button(
+                    label="📊 Download Complete Analysis (Excel)",
+                    data=excel_data,
+                    file_name=f"whatsapp_complete_analysis_{selected_user}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Download all analysis data in Excel format with multiple sheets"
+                )
+            except Exception as e:
+                st.error(f"Error preparing Excel export: {e}")
+        
+        with col_full2:
+            # Export complete analysis to PDF with charts
+            try:
+                # Generate all charts for PDF export
+                charts_dict = {}
+                
+                # Monthly Timeline Chart
+                fig_monthly, ax_monthly = plt.subplots(figsize=(10, 4))
+                ax_monthly.plot(timeline_df['time'], timeline_df['Message'], color='green', linewidth=2)
+                ax_monthly.set_xlabel('Time Period')
+                ax_monthly.set_ylabel('Messages')
+                ax_monthly.set_title('Monthly Timeline')
+                plt.xticks(rotation=45)
+                plt.tight_layout()
+                charts_dict['Monthly Timeline'] = fig_monthly
+                
+                # Daily Timeline Chart
+                fig_daily, ax_daily = plt.subplots(figsize=(10, 4))
+                ax_daily.plot(daily_timeline_df['only_date'], daily_timeline_df['Message'], color='black', linewidth=2)
+                ax_daily.set_xlabel('Date')
+                ax_daily.set_ylabel('Messages')
+                ax_daily.set_title('Daily Timeline')
+                plt.xticks(rotation=45)
+                plt.tight_layout()
+                charts_dict['Daily Timeline'] = fig_daily
+                
+                # Most Active Days Chart
+                busy_day = helper.week_activity_map(selected_user, df)
+                if not busy_day.empty:
+                    fig_days, ax_days = plt.subplots(figsize=(10, 4))
+                    ax_days.bar(busy_day.index, busy_day.values, color='orange')
+                    ax_days.set_xlabel('Day of Week')
+                    ax_days.set_ylabel('Messages')
+                    ax_days.set_title('Most Active Days')
+                    plt.xticks(rotation=45)
+                    plt.tight_layout()
+                    charts_dict['Most Active Days'] = fig_days
+                
+                # Most Active Month Chart
+                busy_month = helper.month_activity_map(selected_user, df)
+                if not busy_month.empty:
+                    fig_months, ax_months = plt.subplots(figsize=(10, 4))
+                    ax_months.bar(busy_month.index, busy_month.values, color='purple')
+                    ax_months.set_xlabel('Month')
+                    ax_months.set_ylabel('Messages')
+                    ax_months.set_title('Most Active Months')
+                    plt.xticks(rotation=45)
+                    plt.tight_layout()
+                    charts_dict['Most Active Months'] = fig_months
+                
+                # Activity Heatmap
+                user_heatmap = helper.activity_heatmap(selected_user, df)
+                if not user_heatmap.empty and not user_heatmap.isnull().all().all():
+                    fig_heatmap, ax_heatmap = plt.subplots(figsize=(12, 6))
+                    sns.heatmap(user_heatmap, ax=ax_heatmap, cmap='YlOrRd')
+                    ax_heatmap.set_title('Activity Heatmap')
+                    plt.tight_layout()
+                    charts_dict['Activity Heatmap'] = fig_heatmap
+                
+                # WordCloud
+                df_wcl = helper.create_wordcloud(selected_user, df)
+                if df_wcl is not None:
+                    fig_wc, ax_wc = plt.subplots(figsize=(10, 6))
+                    ax_wc.imshow(df_wcl, interpolation="bilinear")
+                    ax_wc.axis("off")
+                    ax_wc.set_title('Word Cloud')
+                    plt.tight_layout()
+                    charts_dict['Word Cloud'] = fig_wc
+                
+                # Most Common Words Chart
+                fig_words, ax_words = plt.subplots(figsize=(10, 6))
+                ax_words.barh(most_common_df['Word'], most_common_df['Frequency'], color='teal')
+                ax_words.set_xlabel('Frequency')
+                ax_words.set_ylabel('Words')
+                ax_words.set_title('Most Common Words')
+                plt.tight_layout()
+                charts_dict['Most Common Words'] = fig_words
+                
+                # Emoji Bar Chart
+                fig_emoji_bar = helper.generate_emoji_bar_chart_figure(selected_user, df)
+                if fig_emoji_bar is not None:
+                    charts_dict['Emoji Usage Bar Chart'] = fig_emoji_bar
+                
+                # Top Users Chart (if Overall)
+                if selected_user == 'Overall':
+                    x, _ = helper.most_busy_users(df)
+                    fig_users, ax_users = plt.subplots(figsize=(10, 4))
+                    ax_users.bar(x.index, x.values, color='green')
+                    ax_users.set_xlabel('User')
+                    ax_users.set_ylabel('Messages')
+                    ax_users.set_title('Top 5 Contributors')
+                    plt.xticks(rotation=45)
+                    plt.tight_layout()
+                    charts_dict['Top Contributors'] = fig_users
+                
+                # Generate PDF with charts
+                pdf_complete = export_helper.export_complete_analysis_pdf(
+                    selected_user, st.session_state.stats, date_range,
+                    common_words_df=most_common_df,
+                    emoji_df=emoji_df,
+                    busy_users_df=busy_users_df if selected_user == 'Overall' else None,
+                    charts=charts_dict
+                )
+                
+                # Close all figures to free memory
+                for fig in charts_dict.values():
+                    plt.close(fig)
+                
+                st.download_button(
+                    label="📄 Download Complete Analysis (PDF)",
+                    data=pdf_complete,
+                    file_name=f"whatsapp_complete_analysis_{selected_user}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                    mime="application/pdf",
+                    help="Download comprehensive analysis report in PDF format with all visualizations"
+                )
+            except Exception as e:
+                st.error(f"Error preparing PDF export: {e}")
+                import traceback
+                st.error(traceback.format_exc())
+        
+        st.success("✅ Analysis complete! Use the export buttons above to save your results.")
+ main
