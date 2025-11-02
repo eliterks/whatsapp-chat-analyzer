@@ -235,13 +235,27 @@ def export_complete_analysis_pdf(selected_user, stats_dict, date_range=None,
         try:
             import matplotlib.pyplot as plt
             import matplotlib.font_manager as fm
+            import os
+            import platform
             
             # Try to use a system font that supports emojis
+            emoji_font = None
             try:
-                # Windows emoji font
-                emoji_font = fm.FontProperties(fname='C:\\Windows\\Fonts\\seguiemj.ttf')
+                system = platform.system()
+                if system == 'Windows':
+                    font_path = 'C:\\Windows\\Fonts\\seguiemj.ttf'
+                elif system == 'Darwin':  # macOS
+                    font_path = '/System/Library/Fonts/Apple Color Emoji.ttc'
+                else:  # Linux
+                    font_path = '/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf'
+                
+                if os.path.exists(font_path):
+                    emoji_font = fm.FontProperties(fname=font_path)
             except:
-                # Fallback to default
+                pass
+            
+            # Fallback to default if no emoji font found
+            if emoji_font is None:
                 emoji_font = fm.FontProperties()
             
             # Prepare data for table
@@ -249,8 +263,8 @@ def export_complete_analysis_pdf(selected_user, stats_dict, date_range=None,
             table_data = []
             
             for idx, row in emoji_df.head(10).iterrows():
-                emoji_char = str(row.iloc[0])
-                count = int(row.iloc[1])
+                emoji_char = str(row['Emoji'])  # Use column name instead of iloc
+                count = int(row['Count'])  # Use column name instead of iloc
                 table_data.append([emoji_char, str(count)])
             
             # Create figure with table
@@ -325,7 +339,7 @@ def export_complete_analysis_pdf(selected_user, stats_dict, date_range=None,
             # Fallback to text table without emojis
             emoji_data = [['Emoji #', 'Count']]
             for idx, row in emoji_df.iterrows():
-                emoji_data.append([f"Emoji {idx+1}", str(row.iloc[1])])
+                emoji_data.append([f"Emoji {idx+1}", str(row['Count'])])
             
             emoji_table = Table(emoji_data, colWidths=[3*inch, 2*inch])
             emoji_table.setStyle(TableStyle([
