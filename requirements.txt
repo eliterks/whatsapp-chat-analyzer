@@ -5,3 +5,6 @@ urlextract
 wordcloud
 pandas
 emoji
+reportlab
+pillow
+openpyxl
