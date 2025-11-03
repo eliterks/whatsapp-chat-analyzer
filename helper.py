@@ -7,6 +7,151 @@ from collections import Counter
 import emoji
 
 extractor = URLExtract()  # Object for URL extraction
+from pyvis.network import Network
+import tempfile
+import os
+
+def create_interaction_graph(selected_user, df, dynamic=True):
+    """
+    Build an interactive PyVis network of user interactions.
+    Each node = user; edge = frequency of interaction.
+    Thicker edges mean stronger message connections.
+    """
+    if 'Sender' not in df.columns or len(df) < 5:
+        return None
+
+    if selected_user != "Overall":
+        df = df[df['Sender'] == selected_user]
+
+    df = df.reset_index(drop=True)
+
+    # 🧮 Count consecutive sender pairs
+    interactions = {}
+    for i in range(1, len(df)):
+        s1, s2 = df.loc[i - 1, "Sender"], df.loc[i, "Sender"]
+        if s1 != s2:
+            key = tuple(sorted([s1, s2]))
+            interactions[key] = interactions.get(key, 0) + 1
+
+    if not interactions:
+        return None
+
+    # 🎨 Create PyVis network
+    net = Network(height="700px", width="100%", bgcolor="#0a0a0a", font_color="white", directed=False, notebook=False)
+
+    # ✨ Physics (controls movement and layout)
+    physics_options = """
+    const options = {
+      "physics": {
+        "enabled": %s,
+        "forceAtlas2Based": {
+          "gravitationalConstant": -50,
+          "centralGravity": 0.008,
+          "springLength": 180,
+          "springConstant": 0.06,
+          "avoidOverlap": 0.5
+        },
+        "maxVelocity": 30,
+        "solver": "forceAtlas2Based",
+        "timestep": 0.3
+      },
+      "edges": {
+        "smooth": {"type": "dynamic"},
+        "color": {"inherit": false},
+        "width": 1
+      },
+      "interaction": {
+        "hover": true,
+        "zoomView": true,
+        "dragNodes": true,
+        "navigationButtons": true
+      }
+    }
+    """ % ("true" if dynamic else "false")
+
+    net.set_options(physics_options)
+
+    # 🧩 Add user nodes
+    unique_users = df["Sender"].unique().tolist()
+    msg_counts = {u: df[df["Sender"] == u].shape[0] for u in unique_users}
+    for user in unique_users:
+        color = f"hsl({hash(user) % 360}, 70%, 60%)"
+        size = 15 + (msg_counts[user] ** 0.5) * 3
+        net.add_node(
+            user,
+            label=user,
+            color=color,
+            size=size,
+            title=f"{user}: {msg_counts[user]} messages"
+        )
+
+    # 🔗 Add edges (based on frequency)
+    max_count = max(interactions.values())
+    for (u1, u2), count in interactions.items():
+        width = 1 + (count / max_count) * 8
+        hue = int(360 * (count / max_count))
+        edge_color = f"hsl({hue}, 90%, 60%)"
+        net.add_edge(
+            u1, u2,
+            value=count,
+            title=f"{u1} ↔ {u2}: {count} messages",
+            color=edge_color,
+            width=width
+        )
+
+    # ⚙️ Do NOT use show_buttons (it’s bugged in latest pyvis)
+    # net.show_buttons(filter_=["physics"])  # ❌ removed
+
+    # ✅ Generate HTML output safely
+    try:
+        html_content = net.generate_html()
+    except Exception:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
+            net.write_html(tmp.name)
+            tmp_path = tmp.name
+        with open(tmp_path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+        os.remove(tmp_path)
+
+    # Add optional smooth rotation if dynamic=True
+        if dynamic:
+            html_content += """
+            <script type="text/javascript">
+                const container = document.querySelector('#mynetwork');
+                const options = {
+                    interaction: { zoomView: false, dragView: false },
+                    physics: false
+                };
+                const network = new vis.Network(container, {nodes: nodes, edges: edges}, options);
+
+                // --- Lock initial view ---
+                network.moveTo({
+                scale: 1.0,
+                position: {x: 0, y: 0},
+                animation: {duration: 0}
+                });
+
+                // --- Create smooth 3D-like rotation effect ---
+                let angle = 0;
+                const radius = 600;
+                setInterval(() => {
+                    angle += 0.0025;
+                    const x = Math.cos(angle) * radius;
+                    const y = Math.sin(angle) * radius;
+                    network.moveTo({
+                        position: {x: x, y: y},
+                        scale: 1.0,
+                        animation: {duration: 80, easingFunction: 'linear'}
+                    });
+                }, 80);
+
+                // Prevent user scroll or zoom events completely
+                container.addEventListener('wheel', e => e.preventDefault(), { passive: false });
+            </script>
+            """
+
+
+    return html_content
 
 
 # =========================

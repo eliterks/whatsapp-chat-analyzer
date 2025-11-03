@@ -1,10 +1,22 @@
+# Core Streamlit app
 streamlit
+pandas
 matplotlib
 seaborn
-urlextract
 wordcloud
-pandas
 emoji
+urlextract
+
+# NLP (Sentiment Analysis)
+textblob
+
+# File Export & Document Generation
 reportlab
 pillow
 openpyxl
+python-docx
+
+# Interactive Network Visualization
+networkx
+pyvis
+plotly
