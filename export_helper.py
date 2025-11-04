@@ -1,5 +1,6 @@
 import pandas as pd
 import io
+import re
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
@@ -9,6 +10,78 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 import matplotlib.pyplot as plt
 import tempfile
 import os
+
+
+# =========================
+# 🧹 Sanitization Helper
+# =========================
+
+def sanitize_for_excel(text):
+    """
+    Remove illegal characters that OpenPyXL cannot handle in Excel worksheets.
+    OpenPyXL doesn't allow control characters (0x00-0x1F except tab, newline, carriage return).
+    
+    Args:
+        text: String to sanitize
+        
+    Returns:
+        Sanitized string safe for Excel
+    """
+    if not isinstance(text, str):
+        return text
+    
+    # Remove control characters except \t (tab), \n (newline), \r (carriage return)
+    sanitized = re.sub(r'[\x00-\x08\x0B-\x0C\x0E-\x1F]', '', text)
+    
+    # Also remove other problematic characters
+    sanitized = re.sub(r'[\x7F-\x9F]', '', sanitized)
+    
+    # Remove Unicode directional formatting characters (cause issues in Excel)
+    # These include: LRM, RLM, LRE, RLE, PDF, LRO, RLO, FSI, PDI, etc.
+    sanitized = re.sub(r'[\u200E\u200F\u202A-\u202E\u2066-\u2069]', '', sanitized)
+    
+    # Remove additional problematic Unicode characters that can cause issues
+    # Zero-width characters and other invisible characters
+    sanitized = re.sub(r'[\u200B-\u200D\uFEFF]', '', sanitized)
+    
+    # Remove variation selectors and other combining characters that might cause issues
+    sanitized = re.sub(r'[\uFE00-\uFE0F]', '', sanitized)
+    
+    # Additional safety: remove any character that might cause issues with OpenPyXL
+    # This is a more aggressive approach to ensure compatibility
+    try:
+        # Test if the string can be written to Excel
+        import io
+        import pandas as pd
+        test_df = pd.DataFrame({'test': [sanitized]})
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            test_df.to_excel(writer, index=False)
+        buffer.close()
+    except Exception:
+        # If it fails, remove all non-ASCII characters as a last resort
+        sanitized = re.sub(r'[^\x00-\x7F]', '', sanitized)
+    
+    return sanitized
+
+
+def sanitize_dataframe_for_excel(df):
+    """
+    Sanitize all string columns in a DataFrame for Excel export.
+    
+    Args:
+        df: pandas DataFrame to sanitize
+        
+    Returns:
+        Sanitized DataFrame copy
+    """
+    df_clean = df.copy()
+    
+    for col in df_clean.columns:
+        if df_clean[col].dtype == 'object':  # String columns
+            df_clean[col] = df_clean[col].apply(lambda x: sanitize_for_excel(x) if isinstance(x, str) else x)
+    
+    return df_clean
 
 
 # =========================
@@ -47,24 +120,29 @@ def export_complete_analysis_csv(selected_user, df, stats_dict, timeline_df=None
         })
         stats_df.to_excel(writer, sheet_name='Statistics', index=False)
         
-        # Timeline sheets
+        # Timeline sheets (sanitize)
         if timeline_df is not None and not timeline_df.empty:
-            timeline_df.to_excel(writer, sheet_name='Monthly Timeline', index=False)
+            timeline_clean = sanitize_dataframe_for_excel(timeline_df)
+            timeline_clean.to_excel(writer, sheet_name='Monthly Timeline', index=False)
         
         if daily_timeline_df is not None and not daily_timeline_df.empty:
-            daily_timeline_df.to_excel(writer, sheet_name='Daily Timeline', index=False)
+            daily_clean = sanitize_dataframe_for_excel(daily_timeline_df)
+            daily_clean.to_excel(writer, sheet_name='Daily Timeline', index=False)
         
-        # Common words
+        # Common words (sanitize)
         if common_words_df is not None and not common_words_df.empty:
-            common_words_df.to_excel(writer, sheet_name='Common Words', index=False)
+            words_clean = sanitize_dataframe_for_excel(common_words_df)
+            words_clean.to_excel(writer, sheet_name='Common Words', index=False)
         
-        # Emoji analysis
+        # Emoji analysis (sanitize)
         if emoji_df is not None and not emoji_df.empty:
-            emoji_df.to_excel(writer, sheet_name='Emoji Analysis', index=False)
+            emoji_clean = sanitize_dataframe_for_excel(emoji_df)
+            emoji_clean.to_excel(writer, sheet_name='Emoji Analysis', index=False)
         
-        # Busy users (if Overall view)
+        # Busy users (if Overall view) (sanitize)
         if busy_users_df is not None and not busy_users_df.empty:
-            busy_users_df.to_excel(writer, sheet_name='Top Users', index=False)
+            users_clean = sanitize_dataframe_for_excel(busy_users_df)
+            users_clean.to_excel(writer, sheet_name='Top Users', index=False)
     
     output.seek(0)
     return output.getvalue()

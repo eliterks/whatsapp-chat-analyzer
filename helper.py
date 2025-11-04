@@ -5,11 +5,112 @@ from wordcloud import WordCloud
 import pandas as pd
 from collections import Counter
 import emoji
+import re
 
 extractor = URLExtract()  # Object for URL extraction
 from pyvis.network import Network
 import tempfile
 import os
+
+
+# =========================
+# 😀 Centralized Emoji Detection
+# =========================
+def is_emoji_robust(character):
+    """
+    Robust emoji detection function that tries multiple methods
+    to ensure compatibility across different emoji package versions.
+    
+    Args:
+        character: Single character to check
+        
+    Returns:
+        bool: True if character is an emoji, False otherwise
+    """
+    if not character:
+        return False
+    
+    # Method 1: Try emoji.is_emoji() (available in emoji >= 2.0.0)
+    try:
+        if hasattr(emoji, 'is_emoji') and callable(emoji.is_emoji):
+            if emoji.is_emoji(character):
+                return True
+    except Exception:
+        pass
+    
+    # Method 2: Try checking in emoji.EMOJI_DATA (available in emoji >= 2.0.0)
+    try:
+        if hasattr(emoji, 'EMOJI_DATA') and character in emoji.EMOJI_DATA:
+            return True
+    except Exception:
+        pass
+    
+    # Method 3: Try legacy emoji.UNICODE_EMOJI (for emoji < 2.0.0)
+    try:
+        if hasattr(emoji, 'UNICODE_EMOJI'):
+            # UNICODE_EMOJI might be a dict with language keys
+            if isinstance(emoji.UNICODE_EMOJI, dict):
+                # Try common language keys
+                for lang in ['en', 'es', 'pt', 'it', 'fr', 'de']:
+                    if lang in emoji.UNICODE_EMOJI and character in emoji.UNICODE_EMOJI[lang]:
+                        return True
+            # Or it might be flat dict in older versions
+            elif character in emoji.UNICODE_EMOJI:
+                return True
+    except Exception:
+        pass
+    
+    # Method 4: Unicode range check as final fallback
+    # Common emoji ranges in Unicode
+    try:
+        code_point = ord(character)
+        # Basic Emoticons, Dingbats, Misc Symbols, Transport, etc.
+        emoji_ranges = [
+            (0x1F300, 0x1F9FF),  # Miscellaneous Symbols and Pictographs, Emoticons, etc.
+            (0x2600, 0x26FF),    # Miscellaneous Symbols
+            (0x2700, 0x27BF),    # Dingbats
+            (0x1F600, 0x1F64F),  # Emoticons
+            (0x1F680, 0x1F6FF),  # Transport and Map Symbols
+            (0x1F900, 0x1F9FF),  # Supplemental Symbols and Pictographs
+            (0x1FA00, 0x1FA6F),  # Chess Symbols, etc.
+            (0x1FA70, 0x1FAFF),  # Symbols and Pictographs Extended-A
+            (0x2300, 0x23FF),    # Miscellaneous Technical
+            (0x2B50, 0x2B50),    # Star
+            (0x203C, 0x3299),    # Various symbols
+        ]
+        for start, end in emoji_ranges:
+            if start <= code_point <= end:
+                return True
+    except Exception:
+        pass
+    
+    return False
+
+
+def extract_emojis_from_text(text):
+    """
+    Extract all emojis from a text string using robust detection.
+    Filters out Unicode control characters that can cause display issues.
+    
+    Args:
+        text: Text string to extract emojis from
+        
+    Returns:
+        list: List of emoji characters found in the text
+    """
+    if not isinstance(text, str):
+        return []
+    
+    # First, clean the text of problematic Unicode control characters
+    # that can interfere with emoji display
+    cleaned_text = re.sub(r'[\u200B-\u200D\uFEFF\uFE00-\uFE0F\u200E\u200F\u202A-\u202E\u2066-\u2069]', '', text)
+    
+    emojis = []
+    for char in cleaned_text:
+        if is_emoji_robust(char):
+            emojis.append(char)
+    
+    return emojis
 
 def create_interaction_graph(selected_user, df, dynamic=True):
     """
@@ -293,14 +394,17 @@ def most_common_words(selected_user, df):
 # 😀 Emoji Analysis
 # =========================
 def emoji_helper(selected_user, df):
+    """
+    Extract and count emojis from messages using robust detection.
+    Returns a DataFrame with top 10 most used emojis.
+    """
     if selected_user != 'Overall':
         df = df[df['Sender'] == selected_user]
 
     emojis = []
     for message in df['Message']:
-        for char in str(message):
-            if emoji.is_emoji(char):
-                emojis.append(char)
+        # Use robust emoji extraction
+        emojis.extend(extract_emojis_from_text(str(message)))
 
     if not emojis:
         return pd.DataFrame(columns=['Emoji', 'Count'])
@@ -393,12 +497,14 @@ def activity_heatmap(selected_user, df):
 # 😊 Emoji Usage Bar Chart
 # =========================
 def create_emoji_bar_chart(selected_user, df):
+    """
+    Create and display emoji bar chart in Streamlit using robust emoji detection.
+    """
     import pandas as pd
     import seaborn as sns
     import matplotlib.pyplot as plt
     import streamlit as st
     from collections import Counter
-    import emoji
     import matplotlib.font_manager as fm
     import os
     import platform
@@ -407,15 +513,10 @@ def create_emoji_bar_chart(selected_user, df):
     if selected_user != 'Overall':
         df = df[df['Sender'] == selected_user]
 
-    # --- Extract emojis ---
-    def extract_emojis(text):
-        if not isinstance(text, str):
-            return []
-        return [ch for ch in text if ch in emoji.EMOJI_DATA]
-
+    # Extract emojis using robust detection
     all_emojis = []
     for msg in df['Message']:
-        all_emojis.extend(extract_emojis(msg))
+        all_emojis.extend(extract_emojis_from_text(msg))
 
     if not all_emojis:
         st.warning("No emojis detected 😅")
@@ -424,35 +525,69 @@ def create_emoji_bar_chart(selected_user, df):
     emoji_counts = Counter(all_emojis).most_common(10)
     emoji_df = pd.DataFrame(emoji_counts, columns=['emoji', 'count'])
 
-    # --- Load a system font that supports emojis ---
-    prop = None
+    # --- Setup emoji-compatible font ---
+    emoji_font = None
     try:
         system = platform.system()
         if system == 'Windows':
-            font_path = "C:\\Windows\\Fonts\\seguiemj.ttf"
+            # Try multiple Windows emoji fonts
+            font_paths = [
+                "C:\\Windows\\Fonts\\seguiemj.ttf",  # Segoe UI Emoji
+                "C:\\Windows\\Fonts\\seguisym.ttf",  # Segoe UI Symbol
+            ]
         elif system == 'Darwin':  # macOS
-            font_path = "/System/Library/Fonts/Apple Color Emoji.ttc"
+            font_paths = [
+                "/System/Library/Fonts/Apple Color Emoji.ttc",
+                "/System/Library/Fonts/Apple Symbols.ttf",
+            ]
         else:  # Linux
-            font_path = "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"
+            font_paths = [
+                "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            ]
         
-        if os.path.exists(font_path):
-            prop = fm.FontProperties(fname=font_path)
-            plt.rcParams['font.family'] = prop.get_name()
-    except Exception as e:
-        st.warning("Emoji font not found, using default font.")
+        for font_path in font_paths:
+            if os.path.exists(font_path):
+                emoji_font = fm.FontProperties(fname=font_path)
+                break
+    except Exception:
+        pass
 
     # --- Plot ---
     fig, ax = plt.subplots(figsize=(8, 4))
+    
+    # Use a style that works well with emojis
+    plt.style.use('default')
+    
     sns.barplot(data=emoji_df, x='emoji', y='count', palette='viridis', ax=ax)
 
-    # Make x-axis emojis large and clear
-    if prop is not None:
-        ax.set_xticklabels(emoji_df['emoji'], fontproperties=prop, fontsize=22)
+    # Configure emoji display on x-axis
+    if emoji_font is not None:
+        # Use the emoji font for x-axis labels
+        ax.set_xticklabels(emoji_df['emoji'], fontproperties=emoji_font, fontsize=24)
     else:
-        ax.set_xticklabels(emoji_df['emoji'], fontsize=22)
-    ax.set_title("Top 10 Emojis Used", fontsize=14)
+        # Fallback: try to use a font that might support emojis
+        try:
+            # Try to find any font that might support emojis
+            available_fonts = [f.name for f in fm.fontManager.ttflist]
+            emoji_friendly_fonts = ['DejaVu Sans', 'Arial Unicode MS', 'Segoe UI', 'Apple Color Emoji']
+            for font_name in emoji_friendly_fonts:
+                if font_name in available_fonts:
+                    ax.set_xticklabels(emoji_df['emoji'], fontname=font_name, fontsize=24)
+                    break
+            else:
+                # Last resort: use default but larger
+                ax.set_xticklabels(emoji_df['emoji'], fontsize=24)
+        except:
+            ax.set_xticklabels(emoji_df['emoji'], fontsize=24)
+    
+    ax.set_title("Top 10 Emojis Used", fontsize=14, weight='bold')
     ax.set_xlabel("Emoji", fontsize=12)
     ax.set_ylabel("Count", fontsize=12)
+    
+    # Remove tick marks (the small lines on axes)
+    ax.tick_params(axis='x', which='both', length=0)  # Remove x-axis ticks
+    ax.tick_params(axis='y', which='both', length=3)  # Keep y-axis ticks small
     
     plt.tight_layout()
     st.pyplot(fig)
@@ -462,12 +597,14 @@ def create_emoji_bar_chart(selected_user, df):
 # 😊 Generate Emoji Bar Chart Figure (for PDF export)
 # =========================
 def generate_emoji_bar_chart_figure(selected_user, df):
-    """Generate emoji bar chart figure without displaying it (for PDF export)"""
+    """
+    Generate emoji bar chart figure without displaying it (for PDF export).
+    Uses robust emoji detection for compatibility.
+    """
     import pandas as pd
     import seaborn as sns
     import matplotlib.pyplot as plt
     from collections import Counter
-    import emoji
     import matplotlib.font_manager as fm
     import os
     import platform
@@ -476,15 +613,10 @@ def generate_emoji_bar_chart_figure(selected_user, df):
     if selected_user != 'Overall':
         df = df[df['Sender'] == selected_user]
 
-    # --- Extract emojis ---
-    def extract_emojis(text):
-        if not isinstance(text, str):
-            return []
-        return [ch for ch in text if ch in emoji.EMOJI_DATA]
-
+    # Extract emojis using robust detection
     all_emojis = []
     for msg in df['Message']:
-        all_emojis.extend(extract_emojis(msg))
+        all_emojis.extend(extract_emojis_from_text(msg))
 
     if not all_emojis:
         return None  # No emojis found
@@ -492,34 +624,69 @@ def generate_emoji_bar_chart_figure(selected_user, df):
     emoji_counts = Counter(all_emojis).most_common(10)
     emoji_df = pd.DataFrame(emoji_counts, columns=['emoji', 'count'])
 
-    # --- Load a system font that supports emojis ---
-    prop = None
+    # --- Setup emoji-compatible font ---
+    emoji_font = None
     try:
         system = platform.system()
         if system == 'Windows':
-            font_path = "C:\\Windows\\Fonts\\seguiemj.ttf"
+            # Try multiple Windows emoji fonts
+            font_paths = [
+                "C:\\Windows\\Fonts\\seguiemj.ttf",  # Segoe UI Emoji
+                "C:\\Windows\\Fonts\\seguisym.ttf",  # Segoe UI Symbol
+            ]
         elif system == 'Darwin':  # macOS
-            font_path = "/System/Library/Fonts/Apple Color Emoji.ttc"
+            font_paths = [
+                "/System/Library/Fonts/Apple Color Emoji.ttc",
+                "/System/Library/Fonts/Apple Symbols.ttf",
+            ]
         else:  # Linux
-            font_path = "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"
+            font_paths = [
+                "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            ]
         
-        if os.path.exists(font_path):
-            prop = fm.FontProperties(fname=font_path)
+        for font_path in font_paths:
+            if os.path.exists(font_path):
+                emoji_font = fm.FontProperties(fname=font_path)
+                break
     except Exception:
         pass
 
     # --- Plot ---
     fig, ax = plt.subplots(figsize=(10, 5))
+    
+    # Use a style that works well with emojis
+    plt.style.use('default')
+    
     sns.barplot(data=emoji_df, x='emoji', y='count', palette='viridis', ax=ax)
 
-    # Make x-axis emojis large and clear
-    if prop is not None:
-        ax.set_xticklabels(emoji_df['emoji'], fontproperties=prop, fontsize=22)
+    # Configure emoji display on x-axis
+    if emoji_font is not None:
+        # Use the emoji font for x-axis labels
+        ax.set_xticklabels(emoji_df['emoji'], fontproperties=emoji_font, fontsize=24)
     else:
-        ax.set_xticklabels(emoji_df['emoji'], fontsize=22)
+        # Fallback: try to use a font that might support emojis
+        try:
+            # Try to find any font that might support emojis
+            available_fonts = [f.name for f in fm.fontManager.ttflist]
+            emoji_friendly_fonts = ['DejaVu Sans', 'Arial Unicode MS', 'Segoe UI', 'Apple Color Emoji']
+            for font_name in emoji_friendly_fonts:
+                if font_name in available_fonts:
+                    ax.set_xticklabels(emoji_df['emoji'], fontname=font_name, fontsize=24)
+                    break
+            else:
+                # Last resort: use default but larger
+                ax.set_xticklabels(emoji_df['emoji'], fontsize=24)
+        except:
+            ax.set_xticklabels(emoji_df['emoji'], fontsize=24)
+    
     ax.set_title("Top 10 Emojis Used", fontsize=14, weight='bold')
     ax.set_xlabel("Emoji", fontsize=12)
     ax.set_ylabel("Count", fontsize=12)
+    
+    # Remove tick marks (the small lines on axes)
+    ax.tick_params(axis='x', which='both', length=0)  # Remove x-axis ticks
+    ax.tick_params(axis='y', which='both', length=3)  # Keep y-axis ticks small
     
     plt.tight_layout()
     return fig

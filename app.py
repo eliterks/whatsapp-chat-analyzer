@@ -223,19 +223,6 @@ if uploaded_file is not None:
         except Exception as e:
             st.warning(f"Daily timeline failed: {e}")
 
-        # Emoji usage chart toggle
-        if selected_user == "Overall":
-            df_for_emoji = st.session_state.df
-        else:
-            df_for_emoji = df
-
-        if st.checkbox("📊 Show Emoji Usage Chart"):
-            try:
-                # helper should produce a figure or do plotting inside
-                helper.create_emoji_bar_chart(df_for_emoji)  # earlier you had create_emoji_bar_chart; adapt if signature differs
-            except Exception as e:
-                st.warning(f"Emoji chart failed: {e}")
-
         # activity map
         st.title("🗺️ Activity Map")
         col_d1, col_d2 = st.columns(2)
@@ -321,6 +308,29 @@ if uploaded_file is not None:
             st.dataframe(emoji_df)
         except Exception as e:
             st.warning(f"Emoji extraction failed: {e}")
+
+        # Emoji usage chart - placed below emoji list as requested
+        if st.checkbox("📊 Show Emoji Usage Bar Chart"):
+            try:
+                # Determine which df to use for emoji chart
+                if selected_user == "Overall":
+                    df_for_emoji = st.session_state.df
+                else:
+                    df_for_emoji = df
+                
+                # Check if we have emojis to display
+                from helper import extract_emojis_from_text
+                all_emojis = []
+                for msg in df_for_emoji['Message']:
+                    all_emojis.extend(extract_emojis_from_text(msg))
+                
+                if all_emojis:
+                    helper.create_emoji_bar_chart(selected_user, df_for_emoji)
+                else:
+                    st.info("No emojis found in the selected messages.")
+                    
+            except Exception as e:
+                st.warning(f"Emoji chart failed: {e}")
 
         # Export complete analysis (Excel / PDF)
         st.markdown("---")
