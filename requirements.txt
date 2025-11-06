@@ -1,4 +1,8 @@
-# Core Streamlit app
+# ============================================
+# 📱 WhatsApp Chat Analyzer - Requirements
+# ============================================
+
+# Core Streamlit App
 streamlit
 pandas
 matplotlib
@@ -7,8 +11,11 @@ wordcloud
 emoji
 urlextract
 
-# NLP (Sentiment Analysis)
+# NLP & AI (Sentiment + Summary)
 textblob
+transformers
+torch
+sumy
 
 # File Export & Document Generation
 reportlab
@@ -20,3 +27,6 @@ python-docx
 networkx
 pyvis
 plotly
+
+# JSON Handling (included in Python stdlib)
+# No extra package required for json
