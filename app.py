@@ -145,6 +145,14 @@ if uploaded_file is not None:
         st.session_state.analysis_generated = False
         st.session_state.show_sentiment = False
 
+    if st.sidebar.button("🧠 Generate AI Summary", key="ai_summary"):
+        st.session_state.show_ai_summary = True
+        st.session_state.analysis_generated = False
+        st.session_state.show_sentiment = False
+        st.session_state.show_interaction = False
+
+        
+
 
     # =========================================
     # MAIN ANALYSIS VIEW
@@ -643,6 +651,9 @@ if uploaded_file is not None:
         else:
             st.warning("⚠️ No sufficient interaction data available to build a network graph.")
 
+    elif st.session_state.get("show_ai_summary", False):
+        import ai_summary_helper
+        ai_summary_helper.display_chat_summary(selected_user, st.session_state.df)
 
 
 else:
